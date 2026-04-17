@@ -61,74 +61,65 @@
     .logo-text { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
     .logo-sub { font-size: 11px; color: var(--muted2); font-weight: 500; margin-left: 2px; }
     .header-right { display: flex; align-items: center; gap: 12px; }
-    .api-status {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 12px; color: var(--muted2);
-    }
+    .api-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted2); }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); transition: background 0.3s; }
     .dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
 
-    /* ── MEMBER SEARCH BAR ──────────────────────────────────────────────────── */
-    .search-bar {
+    /* ── MEMBER PICKER ──────────────────────────────────────────────────────── */
+    .picker-bar {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 14px 32px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
+      padding: 16px 32px;
     }
-    .search-input-wrap {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-    .search-icon {
-      position: absolute;
-      left: 12px;
+    .picker-label {
+      font-size: 10px;
+      font-weight: 700;
       color: var(--muted);
-      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 10px;
     }
-    .search-input {
+    .member-cards {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: stretch;
+    }
+    .member-card {
       background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 8px 12px 8px 34px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: inherit;
-      width: 220px;
-      transition: border-color 0.2s;
-    }
-    .search-input:focus { outline: none; border-color: var(--violet); }
-    .quick-pills { display: flex; gap: 6px; flex-wrap: wrap; }
-    .pill {
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
       border: 1.5px solid var(--border);
-      color: var(--muted2);
-      background: transparent;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
-    .pill:hover { border-color: var(--violet2); color: var(--violet2); }
-    .pill.active { background: var(--violet); border-color: var(--violet); color: #fff; }
-    .load-btn {
-      padding: 8px 20px;
-      background: linear-gradient(135deg, var(--violet), #5b3fd4);
-      border: none;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 13px;
-      font-weight: 600;
+      border-radius: 10px;
+      padding: 10px 14px;
       cursor: pointer;
-      font-family: inherit;
-      transition: opacity 0.15s;
+      transition: all 0.15s;
+      min-width: 130px;
+      position: relative;
     }
-    .load-btn:hover { opacity: 0.88; }
+    .member-card:hover { border-color: var(--violet2); transform: translateY(-1px); }
+    .member-card.active { border-color: var(--violet); background: rgba(124,92,252,0.1); }
+    .mc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .mc-avatar {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      background: var(--card2);
+    }
+    .mc-name { font-size: 13px; font-weight: 700; }
+    .mc-role { font-size: 10px; color: var(--muted); margin-bottom: 5px; }
+    .mc-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+    .mc-pill {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: var(--card2);
+      color: var(--muted2);
+      letter-spacing: 0.2px;
+    }
+    .mc-pill.loading { animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
 
     /* ── HERO STATS ─────────────────────────────────────────────────────────── */
     .hero {
@@ -164,6 +155,73 @@
     .hero-trend.up { color: var(--green); }
     .hero-trend.down { color: var(--red); }
     .hero-trend.warn { color: var(--yellow); }
+
+    /* ── MEMBER SNAPSHOT ────────────────────────────────────────────────────── */
+    .member-snapshot {
+      margin: 20px 32px 0;
+      background: linear-gradient(135deg, rgba(124,92,252,0.07), rgba(34,211,238,0.04));
+      border: 1px solid rgba(124,92,252,0.22);
+      border-radius: var(--r);
+      overflow: hidden;
+    }
+    .snapshot-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      padding: 20px 24px 16px;
+    }
+    .snapshot-avatar {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--violet), var(--cyan));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .snapshot-identity { flex: 1; }
+    .snapshot-name-row { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; flex-wrap: wrap; }
+    .snapshot-name { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+    .snapshot-role { font-size: 12px; color: var(--muted2); }
+    .snapshot-backstory { font-size: 12px; color: var(--muted2); line-height: 1.5; margin-top: 4px; font-style: italic; }
+    .snapshot-archetype {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px;
+      background: rgba(124,92,252,0.15); color: var(--violet2);
+    }
+    .snapshot-vitals {
+      display: flex;
+      gap: 0;
+      border-top: 1px solid rgba(124,92,252,0.15);
+      border-bottom: 1px solid rgba(124,92,252,0.15);
+    }
+    .snapshot-vital {
+      flex: 1;
+      padding: 10px 16px;
+      border-right: 1px solid rgba(124,92,252,0.12);
+    }
+    .snapshot-vital:last-child { border-right: none; }
+    .sv-val { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
+    .sv-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .snapshot-why { padding: 14px 24px 18px; }
+    .snapshot-why-title {
+      font-size: 10px; font-weight: 700;
+      color: var(--violet2);
+      text-transform: uppercase; letter-spacing: 0.7px;
+      margin-bottom: 10px;
+    }
+    .snapshot-why-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .why-item {
+      display: flex; align-items: flex-start; gap: 7px;
+      font-size: 12px; color: var(--muted2); line-height: 1.4;
+      background: rgba(0,0,0,0.2); border-radius: 7px; padding: 8px 10px;
+    }
+    .why-arrow { color: var(--violet2); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .why-item.highlight { background: rgba(124,92,252,0.1); }
+    .why-item.alert { background: rgba(248,113,113,0.08); }
+    .why-item.alert .why-arrow { color: var(--red); }
+    .why-item.success { background: rgba(52,211,153,0.07); }
+    .why-item.success .why-arrow { color: var(--green); }
 
     /* ── TABS ───────────────────────────────────────────────────────────────── */
     .tabs-wrap { padding: 20px 32px 0; }
@@ -204,6 +262,22 @@
       text-transform: uppercase;
       letter-spacing: 0.6px;
     }
+
+    /* ── WHY BANNER (prompts/nudges context) ────────────────────────────────── */
+    .why-banner {
+      background: rgba(124,92,252,0.06);
+      border: 1px solid rgba(124,92,252,0.2);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .why-banner-title {
+      font-size: 10px; font-weight: 700;
+      color: var(--violet2); text-transform: uppercase; letter-spacing: 0.6px;
+      margin-bottom: 6px;
+    }
+    .why-banner-body { font-size: 12px; color: var(--muted2); line-height: 1.6; }
+    .why-banner-body strong { color: var(--text); font-weight: 600; }
 
     /* ── GRID ───────────────────────────────────────────────────────────────── */
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -268,17 +342,8 @@
 
     /* ── PROGRESS ───────────────────────────────────────────────────────────── */
     .prog-wrap { margin-top: 3px; }
-    .prog-bar {
-      height: 5px;
-      background: var(--border2);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .prog-fill {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.5s ease;
-    }
+    .prog-bar { height: 5px; background: var(--border2); border-radius: 3px; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
     .prog-fill.violet { background: linear-gradient(90deg, var(--violet), var(--violet2)); }
     .prog-fill.green { background: linear-gradient(90deg, #059669, var(--green)); }
     .prog-fill.cyan { background: linear-gradient(90deg, #0891b2, var(--cyan)); }
@@ -298,8 +363,7 @@
       width: 44px; height: 44px;
       border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
-      font-weight: 800;
+      font-size: 20px; font-weight: 800;
       flex-shrink: 0;
     }
     .state-1 { background: rgba(52,211,153,0.15); color: var(--green); }
@@ -328,7 +392,6 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 14px 16px;
-      cursor: default;
       transition: border-color 0.15s;
     }
     .prompt-card:hover { border-color: var(--border2); }
@@ -336,6 +399,15 @@
     .prompt-footer { display: flex; align-items: center; justify-content: space-between; }
     .prompt-meta { display: flex; gap: 6px; align-items: center; }
     .prompt-score { font-size: 11px; color: var(--muted); }
+    .prompt-why {
+      font-size: 11px; color: var(--muted2);
+      background: rgba(124,92,252,0.06);
+      border-left: 2px solid rgba(124,92,252,0.4);
+      padding: 6px 10px;
+      border-radius: 0 6px 6px 0;
+      margin-top: 8px;
+      line-height: 1.4;
+    }
 
     /* ── NUDGE CARDS ────────────────────────────────────────────────────────── */
     .nudge-card {
@@ -362,17 +434,12 @@
       border-radius: 10px;
       padding: 16px;
       transition: border-color 0.2s, transform 0.15s;
-      cursor: default;
     }
     .rec-card:hover { border-color: var(--border2); transform: translateY(-1px); }
     .rec-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
     .rec-title { font-size: 14px; font-weight: 700; line-height: 1.3; }
     .rec-reason { font-size: 12px; color: var(--muted2); line-height: 1.4; margin-top: 6px; }
-    .rec-score {
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--violet2);
-    }
+    .rec-score { font-size: 18px; font-weight: 800; color: var(--violet2); }
 
     /* ── FORMS ──────────────────────────────────────────────────────────────── */
     .form-inline { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
@@ -392,30 +459,20 @@
     .btn-sm {
       padding: 7px 16px;
       background: var(--violet);
-      border: none;
-      border-radius: 7px;
-      color: #fff;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
+      border: none; border-radius: 7px;
+      color: #fff; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
       transition: opacity 0.15s;
-      white-space: nowrap;
-      align-self: flex-end;
+      white-space: nowrap; align-self: flex-end;
     }
     .btn-sm:hover { opacity: 0.85; }
     .btn-ghost {
       padding: 7px 14px;
       background: transparent;
-      border: 1px solid var(--border2);
-      border-radius: 7px;
-      color: var(--muted2);
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: inherit;
-      transition: all 0.15s;
-      align-self: flex-end;
+      border: 1px solid var(--border2); border-radius: 7px;
+      color: var(--muted2); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      transition: all 0.15s; align-self: flex-end;
     }
     .btn-ghost:hover { border-color: var(--violet2); color: var(--violet2); }
 
@@ -430,21 +487,15 @@
 
     /* ── LOADING / EMPTY ────────────────────────────────────────────────────── */
     .loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 28px;
-      color: var(--muted);
-      font-size: 13px;
-      gap: 10px;
+      display: flex; align-items: center; justify-content: center;
+      padding: 28px; color: var(--muted); font-size: 13px; gap: 10px;
     }
     .spinner {
       width: 18px; height: 18px;
       border: 2px solid var(--border2);
       border-top-color: var(--violet);
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      flex-shrink: 0;
+      animation: spin 0.7s linear infinite; flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .empty { padding: 28px; text-align: center; color: var(--muted); font-size: 13px; }
@@ -453,35 +504,20 @@
     .json-btn { font-size: 11px; color: var(--muted); cursor: pointer; font-weight: 600; }
     .json-btn:hover { color: var(--violet2); }
     pre {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 11px;
-      overflow: auto;
-      max-height: 260px;
-      color: #86efac;
-      display: none;
-      line-height: 1.6;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; font-size: 11px; overflow: auto; max-height: 260px;
+      color: #86efac; display: none; line-height: 1.6;
     }
     pre.show { display: block; }
 
     /* ── TOAST ──────────────────────────────────────────────────────────────── */
     #toast {
-      position: fixed;
-      bottom: 24px; right: 24px;
-      background: var(--card);
-      border: 1px solid var(--border2);
-      border-radius: 10px;
-      padding: 12px 18px;
-      font-size: 13px;
-      font-weight: 500;
-      opacity: 0;
-      transform: translateY(8px);
-      transition: all 0.2s;
-      pointer-events: none;
-      z-index: 999;
-      max-width: 300px;
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--card); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 12px 18px;
+      font-size: 13px; font-weight: 500;
+      opacity: 0; transform: translateY(8px);
+      transition: all 0.2s; pointer-events: none; z-index: 999; max-width: 300px;
     }
     #toast.show { opacity: 1; transform: translateY(0); }
     #toast.ok { border-left: 3px solid var(--green); }
@@ -500,11 +536,14 @@
       .hero { grid-template-columns: repeat(3, 1fr); }
       .grid-3 { grid-template-columns: 1fr; }
       .grid-2 { grid-template-columns: 1fr; }
+      .snapshot-why-grid { grid-template-columns: 1fr; }
+      .snapshot-vitals { flex-wrap: wrap; }
     }
     @media (max-width: 600px) {
-      header, .search-bar, .tabs-wrap, .content { padding-left: 16px; padding-right: 16px; }
+      header, .picker-bar, .tabs-wrap, .content { padding-left: 16px; padding-right: 16px; }
       .hero { grid-template-columns: repeat(2, 1fr); padding: 16px 16px 0; }
       .hero-value { font-size: 22px; }
+      .member-snapshot { margin: 12px 16px 0; }
     }
   </style>
 </head>
@@ -527,20 +566,12 @@
   </div>
 </header>
 
-<!-- SEARCH / MEMBER PICKER -->
-<div class="search-bar">
-  <div class="search-input-wrap">
-    <span class="search-icon">⌕</span>
-    <input class="search-input" id="memberInput" type="text" placeholder="Search member ID…" value="member_001" />
+<!-- MEMBER PICKER -->
+<div class="picker-bar">
+  <div class="picker-label">Select a test member to explore</div>
+  <div class="member-cards" id="memberCards">
+    <!-- rendered by JS -->
   </div>
-  <div class="quick-pills">
-    <button class="pill active" onclick="selectMember('member_001')">member_001</button>
-    <button class="pill" onclick="selectMember('member_050')">member_050</button>
-    <button class="pill" onclick="selectMember('member_100')">member_100</button>
-    <button class="pill" onclick="selectMember('member_200')">member_200</button>
-    <button class="pill" onclick="selectMember('member_300')">member_300</button>
-  </div>
-  <button class="load-btn" onclick="loadAll()">Load Profile</button>
 </div>
 
 <!-- HERO STATS -->
@@ -550,6 +581,13 @@
   <div class="hero-stat c3"><div class="hero-label">Lessons Done</div><div class="hero-value" id="h-lessons">—</div><div class="hero-sub" id="h-lessons-sub">total</div></div>
   <div class="hero-stat c4"><div class="hero-label">Intent Score</div><div class="hero-value" id="h-intent">—</div><div class="hero-sub" id="h-intent-sub">confidence</div></div>
   <div class="hero-stat c5"><div class="hero-label">Momentum</div><div class="hero-value" id="h-momentum">—</div><div class="hero-sub" id="h-momentum-sub">score</div></div>
+</div>
+
+<!-- MEMBER SNAPSHOT (shown after load) -->
+<div class="member-snapshot" id="memberSnapshot" style="display:none;">
+  <div class="snapshot-top" id="snapshotTop"><!-- rendered by JS --></div>
+  <div class="snapshot-vitals" id="snapshotVitals"><!-- rendered by JS --></div>
+  <div class="snapshot-why" id="snapshotWhy"><!-- rendered by JS --></div>
 </div>
 
 <!-- TABS -->
@@ -569,7 +607,6 @@
 
     <div class="grid-3">
 
-      <!-- Member State -->
       <div class="card">
         <div class="card-head">
           <div class="card-title"><span class="card-title-icon">🧭</span> Member State</div>
@@ -579,7 +616,6 @@
         </div>
       </div>
 
-      <!-- Intent -->
       <div class="card">
         <div class="card-head">
           <div class="card-title"><span class="card-title-icon">🎯</span> Intent Signals</div>
@@ -589,7 +625,6 @@
         </div>
       </div>
 
-      <!-- Engagement -->
       <div class="card">
         <div class="card-head">
           <div class="card-title"><span class="card-title-icon">⚡</span> Engagement</div>
@@ -603,7 +638,6 @@
 
     <div class="grid-3 mt">
 
-      <!-- Learning Progress -->
       <div class="card span-2">
         <div class="card-head">
           <div class="card-title"><span class="card-title-icon">📚</span> Learning Progress</div>
@@ -614,7 +648,6 @@
         </div>
       </div>
 
-      <!-- Pulse Signals -->
       <div class="card">
         <div class="card-head">
           <div class="card-title"><span class="card-title-icon">📡</span> Pulse Signals</div>
@@ -626,7 +659,6 @@
 
     </div>
 
-    <!-- Raw JSON -->
     <div class="mt">
       <div class="card">
         <div class="card-head">
@@ -642,14 +674,17 @@
   <!-- ── PROMPTS TAB ──────────────────────────────────────────────────────── -->
   <div class="panel" id="tab-prompts">
 
-    <!-- Eve Chat Prompts -->
+    <div class="why-banner" id="promptsWhyBanner">
+      <div class="why-banner-title">Why these prompts?</div>
+      <div class="why-banner-body" id="promptsWhyBody">Load a member to see personalisation reasoning.</div>
+    </div>
+
     <div class="section-head">
       <span class="section-title">Eve Chat Prompts</span>
       <span id="eveVariantBadge" class="badge badge-muted"></span>
     </div>
     <div id="evePromptsList"><div class="loading"><div class="spinner"></div> Loading…</div></div>
 
-    <!-- Learning Assistant -->
     <div class="mt">
       <div class="card">
         <div class="card-head">
@@ -657,11 +692,11 @@
         </div>
         <div class="card-body">
           <div class="form-inline">
-            <div class="fg"><label>Lesson ID</label><input id="lessonId" value="l001" style="width:90px;" /></div>
-            <div class="fg"><label>Quest ID</label><input id="questId" value="hb_q001" style="width:110px;" /></div>
+            <div class="fg"><label>Lesson ID</label><input id="lessonId" value="" placeholder="e.g. q006_lesson_1" style="width:160px;" /></div>
+            <div class="fg"><label>Quest ID</label><input id="questId" value="" placeholder="e.g. q006" style="width:120px;" /></div>
             <button class="btn-sm" onclick="loadLearningPrompts()">Fetch Prompts</button>
           </div>
-          <div id="learningPromptsList"><div class="empty">Enter lesson/quest IDs and click Fetch.</div></div>
+          <div id="learningPromptsList"><div class="empty">IDs pre-filled from member profile. Click Fetch.</div></div>
         </div>
       </div>
     </div>
@@ -671,33 +706,34 @@
   <!-- ── NUDGES TAB ───────────────────────────────────────────────────────── -->
   <div class="panel" id="tab-nudges">
 
+    <div class="why-banner" id="nudgesWhyBanner">
+      <div class="why-banner-title">Nudge eligibility for this member</div>
+      <div class="why-banner-body" id="nudgesWhyBody">Load a member to see which nudges fire and why.</div>
+    </div>
+
     <div class="grid-2">
 
-      <!-- Streak Nudge -->
       <div class="card">
         <div class="card-head"><div class="card-title"><span class="card-title-icon">🔥</span> Streak Save</div></div>
         <div class="card-body" id="streakNudgeBody"><div class="loading"><div class="spinner"></div></div></div>
       </div>
 
-      <!-- Momentum Nudge -->
       <div class="card">
         <div class="card-head"><div class="card-title"><span class="card-title-icon">📉</span> Momentum (Lapse)</div></div>
         <div class="card-body" id="momentumNudgeBody"><div class="loading"><div class="spinner"></div></div></div>
       </div>
 
-      <!-- Coaching Card -->
       <div class="card">
         <div class="card-head"><div class="card-title"><span class="card-title-icon">🧩</span> Coaching Card</div></div>
         <div class="card-body">
           <div class="form-inline">
-            <div class="fg"><label>Lesson ID</label><input id="coachLesson" value="l001" style="width:100px;" /></div>
+            <div class="fg"><label>Lesson ID</label><input id="coachLesson" value="" placeholder="e.g. q006_lesson_1" style="width:160px;" /></div>
             <button class="btn-sm" onclick="loadCoachingCard()">Check</button>
           </div>
           <div id="coachingCardBody"><div class="empty">Click Check to see coaching card.</div></div>
         </div>
       </div>
 
-      <!-- Silence Nudge -->
       <div class="card">
         <div class="card-head"><div class="card-title"><span class="card-title-icon">🌙</span> Silence Re-entry</div></div>
         <div class="card-body" id="silenceNudgeBody"><div class="loading"><div class="spinner"></div></div></div>
@@ -705,7 +741,6 @@
 
     </div>
 
-    <!-- Send via Braze -->
     <div class="mt">
       <div class="card">
         <div class="card-head"><div class="card-title"><span class="card-title-icon">📲</span> Send Nudge via Braze</div></div>
@@ -732,7 +767,6 @@
   <!-- ── QUESTS TAB ───────────────────────────────────────────────────────── -->
   <div class="panel" id="tab-quests">
 
-    <!-- Next Chapter -->
     <div class="section-head">
       <span class="section-title">Next Chapter Recommendations</span>
     </div>
@@ -740,12 +774,11 @@
 
     <div class="grid-2 mt">
 
-      <!-- Almost There -->
       <div class="card">
         <div class="card-head"><div class="card-title"><span class="card-title-icon">🏁</span> Almost There Prompt</div></div>
         <div class="card-body">
           <div class="form-inline">
-            <div class="fg"><label>Quest ID</label><input id="almostQuest" value="hb_q001" style="width:110px;" /></div>
+            <div class="fg"><label>Quest ID</label><input id="almostQuest" value="" placeholder="e.g. q006" style="width:130px;" /></div>
             <div class="fg"><label>% Complete</label><input id="almostPct" type="number" value="82" min="0" max="100" style="width:70px;" /></div>
             <button class="btn-sm" onclick="loadAlmostThere()">Check</button>
           </div>
@@ -753,12 +786,11 @@
         </div>
       </div>
 
-      <!-- Complete a Quest -->
       <div class="card">
         <div class="card-head"><div class="card-title"><span class="card-title-icon">✅</span> Complete a Quest</div></div>
         <div class="card-body">
           <div class="form-inline">
-            <div class="fg"><label>Quest ID</label><input id="completeQuest" value="hb_q001" style="width:110px;" /></div>
+            <div class="fg"><label>Quest ID</label><input id="completeQuest" value="" placeholder="e.g. q006" style="width:130px;" /></div>
             <div class="fg"><label>% Done</label><input id="completePct" type="number" value="100" min="1" max="100" style="width:70px;" /></div>
             <button class="btn-sm" onclick="completeQuest()">Submit</button>
           </div>
@@ -766,14 +798,13 @@
         </div>
       </div>
 
-      <!-- Milestone Check -->
       <div class="card span-2">
         <div class="card-head"><div class="card-title"><span class="card-title-icon">🏆</span> Milestone Check</div></div>
         <div class="card-body">
           <div class="form-inline">
             <div class="fg" style="flex:1;">
               <label>Completed Quest IDs (comma-separated)</label>
-              <input id="milestoneIds" value="hb_q001,hb_q002,hb_q003" style="width:100%;" />
+              <input id="milestoneIds" value="" placeholder="Pre-filled from member history" style="width:100%;" />
             </div>
             <button class="btn-sm" onclick="checkMilestone()">Check Milestone</button>
           </div>
@@ -790,7 +821,61 @@
 <div id="toast"></div>
 
 <script>
+  // ── Constants ─────────────────────────────────────────────────────────────
+
+  const PERSONAS = {
+    'member_001': {
+      name: 'Maya',
+      flag: '🇸🇬',
+      role: 'Wellness Coach',
+      backstory: 'Deepening her spiritual practice alongside her professional wellness work. Shows up every day with intention.',
+    },
+    'member_050': {
+      name: 'James',
+      flag: '🇦🇺',
+      role: 'Tech Lead',
+      backstory: 'Exploring mindfulness and inner development between demanding engineering sprints. High ambition, active learner.',
+    },
+    'member_100': {
+      name: 'Priya',
+      flag: '🇮🇳',
+      role: 'Product Manager',
+      backstory: 'Building mental clarity and focus to perform at her best in a fast-paced product role. Analytical and goal-driven.',
+    },
+    'member_200': {
+      name: 'Carlos',
+      flag: '🇲🇽',
+      role: 'Fitness Trainer',
+      backstory: 'Expanding beyond the physical — recently set a relationships goal. Newer to the platform and drifting.',
+    },
+    'member_300': {
+      name: 'Sofia',
+      flag: '🇩🇪',
+      role: 'Creative Director',
+      backstory: 'Exploring inner work to unlock deeper creative expression and authentic leadership. Values depth over pace.',
+    },
+  };
+
+  const ARCHETYPES = {
+    1: { icon: '🚀', label: 'Deep Learner', color: 'var(--green)' },
+    2: { icon: '🌟', label: 'Inspired but Stalled', color: 'var(--yellow)' },
+    3: { icon: '🏃', label: 'Habitual Explorer', color: 'var(--cyan)' },
+    4: { icon: '⚡', label: 'At-Risk Member', color: 'var(--red)' },
+  };
+
+  const GOAL_LABELS = {
+    spirituality: { icon: '🧘', label: 'Spirituality', desc: 'inner transformation and consciousness expansion' },
+    mindset:      { icon: '🧠', label: 'Mindset', desc: 'mental performance and belief system growth' },
+    health:       { icon: '💪', label: 'Health', desc: 'physical vitality and wellbeing' },
+    relationships:{ icon: '❤️', label: 'Relationships', desc: 'connection and emotional intelligence' },
+    performance:  { icon: '⚡', label: 'Performance', desc: 'peak output and achievement' },
+    mindfulness:  { icon: '🌿', label: 'Mindfulness', desc: 'presence and emotional clarity' },
+    career:       { icon: '💼', label: 'Career', desc: 'professional growth and fulfillment' },
+  };
+
+  const MEMBER_IDS = ['member_001', 'member_050', 'member_100', 'member_200', 'member_300'];
   let currentMember = 'member_001';
+  let memberCache = {};
 
   // ── Utils ─────────────────────────────────────────────────────────────────
 
@@ -857,12 +942,239 @@
 
   function selectMember(id) {
     currentMember = id;
-    document.getElementById('memberInput').value = id;
-    document.querySelectorAll('.pill').forEach(b => {
-      const label = b.textContent.trim();
-      b.classList.toggle('active', label === id);
+    document.querySelectorAll('.member-card').forEach(card => {
+      card.classList.toggle('active', card.dataset.id === id);
     });
     loadAll();
+  }
+
+  // ── Member Card Renderer ──────────────────────────────────────────────────
+
+  function renderMemberCards() {
+    const container = document.getElementById('memberCards');
+    container.innerHTML = MEMBER_IDS.map(id => {
+      const p = PERSONAS[id] || { name: id, flag: '👤', role: '' };
+      return `
+        <div class="member-card ${id === currentMember ? 'active' : ''}" data-id="${id}" onclick="selectMember('${id}')">
+          <div class="mc-top">
+            <div class="mc-avatar">${p.flag}</div>
+            <div>
+              <div class="mc-name">${p.name}</div>
+              <div class="mc-role">${id}</div>
+            </div>
+          </div>
+          <div class="mc-role" style="margin-bottom:6px;">${p.role}</div>
+          <div class="mc-pills" id="mc-pills-${id}">
+            <span class="mc-pill loading">Loading…</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function updateMemberCardPills(id, data) {
+    const el = document.getElementById(`mc-pills-${id}`);
+    if (!el) return;
+    const st = data.member_state || {};
+    const intent = data.intent || {};
+    const pulse = data.pulse_signals || {};
+    const eng = data.engagement || {};
+    const goal = GOAL_LABELS[intent.primary_goal_category];
+    const arch = ARCHETYPES[st.state] || {};
+
+    const stateColors = { 1: '#34d399', 2: '#fbbf24', 3: '#22d3ee', 4: '#f87171' };
+    const sc = stateColors[st.state] || '#9090b8';
+
+    let pills = `
+      <span class="mc-pill" style="background:rgba(${hexToRgb(sc)},0.15);color:${sc};">S${st.state} ${arch.icon || ''}</span>
+      ${goal ? `<span class="mc-pill">${goal.icon} ${goal.label}</span>` : ''}
+      ${eng.streak_days ? `<span class="mc-pill">🔥 ${eng.streak_days}d</span>` : ''}
+      ${pulse.streak_break_risk ? `<span class="mc-pill" style="background:rgba(248,113,113,0.15);color:#f87171;">At risk</span>` : ''}
+      ${pulse.dormancy_diagnosis === 'at_risk' ? `<span class="mc-pill" style="background:rgba(248,113,113,0.15);color:#f87171;">Drifting</span>` : ''}
+    `;
+    el.innerHTML = pills;
+  }
+
+  function hexToRgb(hex) {
+    const map = {
+      '#34d399': '52,211,153', '#fbbf24': '251,191,36',
+      '#22d3ee': '34,211,238', '#f87171': '248,113,113',
+      '#9090b8': '144,144,184',
+    };
+    return map[hex] || '124,92,252';
+  }
+
+  // ── Member Snapshot ───────────────────────────────────────────────────────
+
+  function renderSnapshot(memberId, profileData) {
+    const p = profileData;
+    const persona = PERSONAS[memberId] || { name: memberId, flag: '👤', role: '', backstory: '' };
+    const st = p.member_state || {};
+    const intent = p.intent || {};
+    const eng = p.engagement || {};
+    const lrn = p.learning || {};
+    const pulse = p.pulse_signals || {};
+    const arch = ARCHETYPES[st.state] || { icon: '●', label: 'Unknown', color: 'var(--muted2)' };
+    const goal = GOAL_LABELS[intent.primary_goal_category] || { icon: '●', label: intent.primary_goal_category || 'None', desc: '' };
+
+    // Snapshot top
+    document.getElementById('snapshotTop').innerHTML = `
+      <div class="snapshot-avatar">${persona.flag}</div>
+      <div class="snapshot-identity">
+        <div class="snapshot-name-row">
+          <span class="snapshot-name">${persona.name}</span>
+          <span style="font-size:12px;color:var(--muted2);">${persona.role}</span>
+          <span class="snapshot-archetype" style="background:rgba(${archRgb(st.state)},0.12);color:${arch.color};">
+            ${arch.icon} ${arch.label}
+          </span>
+          ${badge(`S${st.state}`, stateColor(st.state))}
+          ${catBadge(intent.primary_goal_category)}
+        </div>
+        <div class="snapshot-backstory">"${persona.backstory}"</div>
+      </div>
+    `;
+
+    // Vitals
+    const cq = lrn.current_quest;
+    document.getElementById('snapshotVitals').innerHTML = `
+      <div class="snapshot-vital">
+        <div class="sv-val">${eng.streak_days ?? '—'}d</div>
+        <div class="sv-lbl">Streak</div>
+      </div>
+      <div class="snapshot-vital">
+        <div class="sv-val">${lrn.lessons_completed_total ?? '—'}</div>
+        <div class="sv-lbl">Total Lessons</div>
+      </div>
+      <div class="snapshot-vital">
+        <div class="sv-val">${lrn.quests_completed_total ?? '—'}</div>
+        <div class="sv-lbl">Quests Done</div>
+      </div>
+      <div class="snapshot-vital">
+        <div class="sv-val">${pct(pulse.momentum_score)}</div>
+        <div class="sv-lbl">Momentum</div>
+      </div>
+      <div class="snapshot-vital">
+        <div class="sv-val">${pct(st.confidence_score)}</div>
+        <div class="sv-lbl">Intent Conf.</div>
+      </div>
+      ${cq ? `
+      <div class="snapshot-vital" style="flex:2;">
+        <div class="sv-val" style="font-size:13px;">${cq.title}</div>
+        <div class="sv-lbl">${cq.completion_percentage}% complete · ${cq.category}</div>
+        <div style="margin-top:6px;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;">
+          <div style="width:${cq.completion_percentage}%;height:100%;background:var(--violet);border-radius:2px;"></div>
+        </div>
+      </div>` : ''}
+    `;
+
+    // Personalisation implications
+    const implications = buildImplications(p);
+    document.getElementById('snapshotWhy').innerHTML = `
+      <div class="snapshot-why-title">How Eve adapts for ${persona.name}</div>
+      <div class="snapshot-why-grid">
+        ${implications.map(i => `
+          <div class="why-item ${i.type || ''}">
+            <span class="why-arrow">→</span>
+            <span>${i.text}</span>
+          </div>`).join('')}
+      </div>
+    `;
+
+    document.getElementById('memberSnapshot').style.display = 'block';
+  }
+
+  function archRgb(state) {
+    return { 1: '52,211,153', 2: '251,191,36', 3: '34,211,238', 4: '248,113,113' }[state] || '124,92,252';
+  }
+
+  function buildImplications(p) {
+    const st = p.member_state || {};
+    const intent = p.intent || {};
+    const eng = p.engagement || {};
+    const lrn = p.learning || {};
+    const pulse = p.pulse_signals || {};
+    const cq = lrn.current_quest;
+    const items = [];
+    const goal = GOAL_LABELS[intent.primary_goal_category];
+
+    if (st.state === 1) {
+      items.push({ text: `Advanced ${goal ? goal.label.toLowerCase() : ''} prompts surfaced — member is deeply engaged and ready for depth.`, type: 'highlight' });
+      items.push({ text: 'Next-chapter recommendations prioritise quests aligned to their declared goal.', type: 'success' });
+    }
+    if (st.state === 2) {
+      items.push({ text: 'Momentum nudges are the priority — member has strong intent but has lost rhythm.', type: 'alert' });
+      items.push({ text: 'Eve leads with re-engagement prompts, not new content, to reignite the habit.', type: '' });
+    }
+    if (st.state === 3) {
+      items.push({ text: 'Goal-anchoring prompts surfaced — member learns habitually but has no declared direction.', type: '' });
+      items.push({ text: 'Eve asks "What matters to you?" before serving deeper content.', type: '' });
+    }
+    if (st.state === 4) {
+      items.push({ text: 'Re-entry nudge + coaching card are Eve\'s priority — new content would be ignored.', type: 'alert' });
+      items.push({ text: 'Silence nudge likely triggered — member needs a gentle, personal check-in first.', type: 'alert' });
+    }
+
+    if (pulse.streak_break_risk) {
+      items.push({ text: `Streak save nudge eligible today — ${eng.streak_days}d streak at risk. Act now.`, type: 'alert' });
+    } else if (eng.streak_days >= 7) {
+      items.push({ text: `${eng.streak_days}-day streak healthy — Eve rewards consistency, no streak nudge needed.`, type: 'success' });
+    }
+
+    if (cq && cq.completion_percentage >= 80) {
+      items.push({ text: `"Almost there" prompt eligible — ${cq.completion_percentage}% through "${cq.title}". Push to finish.`, type: 'highlight' });
+    }
+
+    if (pulse.days_since_last_active >= 5) {
+      items.push({ text: `Silence nudge triggers after 5 days inactive — member is at ${pulse.days_since_last_active} days. Eve reaches out.`, type: 'alert' });
+    } else {
+      items.push({ text: 'Silence nudge not triggered — member active recently. Eve focuses on content.', type: 'success' });
+    }
+
+    if (intent.prompt_ctr != null) {
+      const ctrLabel = intent.prompt_ctr > 0.6 ? 'high CTR — prompts are landing well' : intent.prompt_ctr > 0.3 ? 'moderate CTR — prompt mix is reasonable' : 'low CTR — Eve adjusts tone and category';
+      items.push({ text: `${Math.round(intent.prompt_ctr * 100)}% ${ctrLabel}.`, type: '' });
+    }
+
+    return items.slice(0, 6);
+  }
+
+  // ── Update why banners ────────────────────────────────────────────────────
+
+  function updatePromptsBanner(p) {
+    const st = p.member_state || {};
+    const intent = p.intent || {};
+    const persona = PERSONAS[currentMember] || { name: 'This member' };
+    const goal = GOAL_LABELS[intent.primary_goal_category];
+    const arch = ARCHETYPES[st.state] || {};
+
+    document.getElementById('promptsWhyBody').innerHTML = `
+      <strong>${persona.name}</strong> is a <strong>${arch.label || 'S' + st.state}</strong> with a
+      <strong>${goal ? goal.label : intent.primary_goal_category || 'undeclared'}</strong> goal
+      (${pct(st.confidence_score)} intent confidence) and a <strong>${Math.round((intent.prompt_ctr || 0) * 100)}% prompt click-through rate</strong>.
+      Eve ranks prompts that ${goal ? 'deepen ' + goal.desc : 'match this member\'s learning history'} and
+      ${st.state === 1 ? 'honour their existing momentum without interruption' :
+        st.state === 2 ? 'reignite motivation — this member needs a spark, not new content' :
+        st.state === 3 ? 'surface goal anchoring — helping them find direction' :
+        're-engage gently — direct coaching is the priority right now'}.
+    `;
+  }
+
+  function updateNudgesBanner(p) {
+    const pulse = p.pulse_signals || {};
+    const eng = p.engagement || {};
+    const persona = PERSONAS[currentMember] || { name: 'This member' };
+    const parts = [];
+
+    if (pulse.streak_break_risk) parts.push(`<strong>Streak save</strong> fires — ${eng.streak_days}d streak at risk`);
+    else parts.push(`<strong>Streak save</strong> not needed — ${eng.streak_days}d streak is healthy`);
+
+    if (pulse.days_since_last_active >= 5) parts.push(`<strong>Silence nudge</strong> active — ${pulse.days_since_last_active} days since last session`);
+    else parts.push(`<strong>Silence nudge</strong> not triggered — active recently`);
+
+    if (pulse.days_inactive_streak >= 3) parts.push(`<strong>Momentum nudge</strong> eligible — ${pulse.days_inactive_streak} day lapse detected`);
+    else parts.push(`<strong>Momentum nudge</strong> not needed — member is active`);
+
+    document.getElementById('nudgesWhyBody').innerHTML =
+      `For <strong>${persona.name}</strong>: ` + parts.join(' · ') + '.';
   }
 
   // ── Health ────────────────────────────────────────────────────────────────
@@ -877,7 +1189,6 @@
   // ── Load all ──────────────────────────────────────────────────────────────
 
   function loadAll() {
-    currentMember = document.getElementById('memberInput').value.trim() || currentMember;
     loadProfile();
     loadEvePrompts();
     loadStreakNudge();
@@ -908,6 +1219,9 @@
     }
 
     const p = d.data;
+    memberCache[currentMember] = p;
+    updateMemberCardPills(currentMember, p);
+
     const st = p.member_state || {};
     const intent = p.intent || {};
     const eng = p.engagement || {};
@@ -925,6 +1239,32 @@
     document.getElementById('h-intent-sub').textContent = intent.primary_goal_category || 'no goal';
     document.getElementById('h-momentum').textContent = pct(pulse.momentum_score);
     document.getElementById('h-momentum-sub').textContent = pulse.dormancy_diagnosis || '—';
+
+    // Snapshot
+    renderSnapshot(currentMember, p);
+    updatePromptsBanner(p);
+    updateNudgesBanner(p);
+
+    // Pre-populate forms with real IDs from this member's profile
+    const cq = lrn.current_quest;
+    const recentLesson = lrn.recent_lessons?.[0];
+    if (cq) {
+      document.getElementById('almostQuest').value = cq.quest_id;
+      document.getElementById('almostPct').value = cq.completion_percentage;
+      document.getElementById('completeQuest').value = cq.quest_id;
+      document.getElementById('questId').value = cq.quest_id;
+    }
+    if (recentLesson) {
+      document.getElementById('lessonId').value = recentLesson.lesson_id;
+      document.getElementById('coachLesson').value = recentLesson.lesson_id;
+    }
+    const completedIds = (lrn.quests || [])
+      .filter(q => q.completed_at)
+      .map(q => q.quest_id)
+      .join(',');
+    if (completedIds) {
+      document.getElementById('milestoneIds').value = completedIds;
+    }
 
     // State card
     const stN = st.state || 0;
@@ -952,14 +1292,8 @@
     const ctrVal = intent.prompt_ctr != null ? intent.prompt_ctr : 0;
     document.getElementById('intentCard').innerHTML = `
       <div class="metric-row">
-        <div class="metric-box">
-          <div class="val">${pct(st.confidence_score)}</div>
-          <div class="lbl">Intent Confidence</div>
-        </div>
-        <div class="metric-box">
-          <div class="val">${pct(ctrVal)}</div>
-          <div class="lbl">Prompt CTR</div>
-        </div>
+        <div class="metric-box"><div class="val">${pct(st.confidence_score)}</div><div class="lbl">Intent Confidence</div></div>
+        <div class="metric-box"><div class="val">${pct(ctrVal)}</div><div class="lbl">Prompt CTR</div></div>
       </div>
       <div class="kv-list">
         ${kv('Goal Category', catBadge(intent.primary_goal_category))}
@@ -977,14 +1311,8 @@
     // Engagement card
     document.getElementById('engCard').innerHTML = `
       <div class="metric-row">
-        <div class="metric-box">
-          <div class="val">${eng.streak_days ?? '—'}</div>
-          <div class="lbl">Day Streak</div>
-        </div>
-        <div class="metric-box">
-          <div class="val">${eng.session_frequency_weekly ?? '—'}</div>
-          <div class="lbl">Sessions/week</div>
-        </div>
+        <div class="metric-box"><div class="val">${eng.streak_days ?? '—'}</div><div class="lbl">Day Streak</div></div>
+        <div class="metric-box"><div class="val">${eng.session_frequency_weekly ?? '—'}</div><div class="lbl">Sessions/week</div></div>
       </div>
       <div class="kv-list">
         ${kv('Total Active Days', eng.total_active_days ?? '—')}
@@ -994,12 +1322,13 @@
     `;
 
     // Learning card
-    const cq = lrn.current_quest;
     const questPct = cq ? cq.completion_percentage / 100 : 0;
     const questPctColor = questPct > 0.7 ? 'green' : questPct > 0.4 ? 'cyan' : 'violet';
     if (cq) {
       document.getElementById('currentQuestBadge').textContent = cq.title;
       document.getElementById('currentQuestBadge').className = 'badge badge-violet';
+    } else {
+      document.getElementById('currentQuestBadge').textContent = '';
     }
     document.getElementById('learningCard').innerHTML = `
       <div class="metric-row">
@@ -1018,16 +1347,13 @@
           </div>
           ${progBar(questPct, questPctColor)}
         </div>
-      ` : ''}
+      ` : '<div class="empty" style="padding:12px;">No active quest.</div>'}
     `;
 
     // Pulse card
     document.getElementById('pulseCard').innerHTML = `
       <div class="metric-row">
-        <div class="metric-box">
-          <div class="val">${pct(pulse.momentum_score)}</div>
-          <div class="lbl">Momentum</div>
-        </div>
+        <div class="metric-box"><div class="val">${pct(pulse.momentum_score)}</div><div class="lbl">Momentum</div></div>
       </div>
       ${progBar(pulse.momentum_score, 'cyan')}
       <div class="kv-list" style="margin-top:14px;">
@@ -1068,7 +1394,7 @@
     document.getElementById('evePromptsList').innerHTML = `
       <div class="prompt-list">
         ${d.prompts.map((p, i) => `
-          <div class="prompt-card" title="Click to copy message to Eve">
+          <div class="prompt-card">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
               <span style="width:22px;height:22px;background:var(--card2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted2);">${i+1}</span>
               ${catBadge(p.category)}
@@ -1080,9 +1406,10 @@
               <div style="font-size:12px;color:var(--muted2);line-height:1.5;">${p.text}</div>
             </div>
             <div class="prompt-footer">
-              <span class="prompt-score">${p.reason || ''}</span>
+              <div class="prompt-meta">${badge(`#${i+1}`, 'badge-muted')}</div>
               <span style="font-size:11px;color:var(--muted);">score: ${(p.ranking_score*100||0).toFixed(0)}%</span>
             </div>
+            ${p.reason ? `<div class="prompt-why">Why Eve chose this: ${p.reason}</div>` : ''}
           </div>
         `).join('')}
       </div>`;
@@ -1361,10 +1688,30 @@
     toast(`🏆 Milestone Level ${m.milestone_level} triggered!`);
   }
 
+  // ── Pre-fetch all members in background ───────────────────────────────────
+
+  async function prefetchAllMembers() {
+    await Promise.all(MEMBER_IDS.map(async id => {
+      if (id === currentMember) return; // already loaded
+      try {
+        const d = await api(`/members/${id}/learner-profile`);
+        if (d.data) {
+          memberCache[id] = d.data;
+          updateMemberCardPills(id, d.data);
+        }
+      } catch(_) {}
+    }));
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────
+
+  renderMemberCards();
   checkHealth();
   setInterval(checkHealth, 10000);
   loadAll();
+
+  // Pre-fetch other members in background after initial load
+  setTimeout(prefetchAllMembers, 2000);
 </script>
 </body>
 </html>
