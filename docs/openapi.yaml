@@ -1,0 +1,2288 @@
+openapi: "3.1.0"
+info:
+  title: Eve Trainer — Learner Profile API
+  version: "1.0.0"
+  description: |
+    C1 Lite Learner Profile API for the Mindvalley Eve Trainer system.
+
+    The Learner Profile is the backbone of the Eve AI proactive engagement layer.
+    It provides a structured, computed view of a member's intent, engagement,
+    learning history, pulse signals, and state classification (State 1–4).
+
+    ## Member States
+    | State | Intent  | Momentum | Strategy                           |
+    |-------|---------|----------|------------------------------------|
+    | 1     | High    | High     | Nurture and deepen                 |
+    | 2     | High    | Low      | Re-activate with low-friction prompts |
+    | 3     | Low     | High     | Surface goal value                 |
+    | 4     | Low     | Low      | Re-onboard or churn-risk intervention |
+
+    ## Fallback Rule
+    If fewer than 3 intent signals are present for a member, the intent confidence
+    score is capped at 0.5 and `member_state.used_fallback` is set to `true`.
+    In this case, only Intent Readiness drives the classification.
+
+    ## Latency
+    The API targets <2s response latency for in-app surfaces. The `meta.latency_ms`
+    field in every response reports the actual server-side computation time.
+  contact:
+    name: Suresh Sakadivan
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: learner-profile
+    description: C1 Lite Learner Profile operations
+  - name: eve-prompts
+    description: Dynamic Eve AI prompt surface (Sprint 2)
+  - name: learning-assistant
+    description: Learning Assistant dynamic prompts — lesson-specific + goal-anchored (Sprint 3)
+  - name: nudges
+    description: Streak-save nudges and post-lesson reflection prompts (Sprint 4)
+  - name: momentum
+    description: Momentum nudges (day3/day7 lapse re-entry) and stuck-point coaching cards (Sprint 5)
+  - name: braze
+    description: Braze push integration, fatigue guard, and segment export (Sprint 6)
+  - name: recommendations
+    description: Predictive Path Continuity — quest completion detection and next-chapter recommendations (Sprint 7)
+  - name: health
+    description: Service health checks
+
+paths:
+  /health:
+    get:
+      tags:
+        - health
+      operationId: getHealth
+      summary: Health check
+      description: Returns the operational status of the API and its underlying data adapter.
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: "ok"
+                adapter: "MockDataAdapter"
+                data_freshness: "daily"
+                timestamp: "2026-04-10T08:00:00.000Z"
+        "503":
+          description: Service is degraded (data adapter unreachable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /members/{member_id}/learner-profile:
+    get:
+      tags:
+        - learner-profile
+      operationId: getLearnerProfile
+      summary: Get C1 Lite Learner Profile
+      description: |
+        Returns the full C1 Lite Learner Profile for a member.
+
+        The profile is built on demand by:
+        1. Fetching raw member data via the configured DataAdapter
+        2. Computing pulse signals (dormancy, momentum score)
+        3. Running the Intent Confidence Score algorithm v1
+        4. Classifying the member into State 1–4
+
+        **Null handling:** If a domain has no data (e.g. no goal declarations),
+        the domain is returned with zero/null values — the request never fails.
+
+        **Fallback rule:** If fewer than 3 intent signals are present,
+        `member_state.used_fallback` is `true` and `intent_confidence_score`
+        is capped at 0.5. Only Intent Readiness is used for classification.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+      responses:
+        "200":
+          description: Learner Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearnerProfileResponse"
+        "400":
+          description: Invalid member_id format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: "INVALID_MEMBER_ID"
+                  message: "member_id must be 1–64 alphanumeric/hyphen/underscore characters"
+                  request_id: "req_abc123_xyz"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: "MEMBER_NOT_FOUND"
+                  message: "No data found for member_id: unknown_member"
+                  request_id: "req_abc123_xyz"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/eve-prompts:
+    get:
+      tags:
+        - eve-prompts
+      operationId: getEvePrompts
+      summary: Get ranked dynamic prompts for Eve AI chat
+      description: |
+        Returns 2–3 personalised, ranked prompts to surface on Eve chat open.
+
+        **Ranking model (rule-based v1):**
+        Prompt score = intent_weight × intent_score
+                     + momentum_weight × momentum_score
+                     + category_affinity (state-specific)
+                     + base_template_weight
+                     + context_bonus (dormancy / streak / quest signals)
+
+        **Category diversity:** At least 2 different prompt categories are always
+        represented in the response.
+
+        **A/B test:** Every member is deterministically assigned to `treatment`
+        or `control` via a hash-based split (50/50). The variant is stable across
+        repeated calls for the same member.
+
+        **Fallback:** If the Learner Profile is unavailable, static fallback prompts
+        are returned and `is_fallback` is `true`. The endpoint always returns 200 —
+        it never 404s on missing profiles.
+
+        **Latency target:** <2s.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+      responses:
+        "200":
+          description: Prompts returned successfully (may be static fallback if profile unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvePromptsResponse"
+              example:
+                prompts:
+                  - prompt_id: "goal_001"
+                    category: "goal"
+                    text: "How is your Health journey going? Let's explore what's working for you."
+                    ranking_score: 0.7234
+                    reason: "connects to your declared goal (high-intent/high-momentum member)"
+                  - prompt_id: "content_002"
+                    category: "content"
+                    text: "Ready to continue WildFit? Let's pick up where you left off."
+                    ranking_score: 0.6891
+                    reason: "builds on your learning momentum (high-intent/high-momentum member)"
+                  - prompt_id: "reflection_001"
+                    category: "reflection"
+                    text: "Take a moment: what's one thing you've learned about yourself recently?"
+                    ranking_score: 0.5540
+                    reason: "supports deeper self-awareness (high-intent/high-momentum member)"
+                ab_variant: "treatment"
+                is_fallback: false
+                meta:
+                  request_id: "req_abc123_xyz"
+                  latency_ms: 14
+                  member_state: 1
+                  adapter: "MockDataAdapter"
+        "400":
+          description: Invalid member_id format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/prompt-ctr:
+    post:
+      tags:
+        - eve-prompts
+      operationId: recordPromptCtr
+      summary: Record a prompt click event (A/B CTR tracking)
+      description: |
+        Records a prompt click-through event for A/B test CTR tracking.
+
+        Builds and fires a structured Amplitude `prompt_clicked` event.
+        The event is returned in the response for client-side verification.
+
+        **Idempotency:** The Amplitude event includes an `insert_id` to prevent
+        duplicate counting if the call is retried within the same minute.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PromptCtrRequest"
+            example:
+              prompt_id: "goal_001"
+              ab_variant: "treatment"
+              member_state: 1
+      responses:
+        "200":
+          description: Click event recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromptCtrResponse"
+        "400":
+          description: Invalid member_id or missing prompt_id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/learning-prompts:
+    get:
+      tags:
+        - learning-assistant
+      operationId: getLearningPrompts
+      summary: Get Learning Assistant prompts for a lesson context
+      description: |
+        Returns 2–3 prompts specifically for the Learning Assistant surface,
+        shown below lesson content to lower the barrier to Eve interaction.
+
+        **Prompt types returned:**
+        - At least 1 **lesson-specific** prompt — anchored to the lesson the
+          member just watched (`lesson_id` / `quest_id` in the query string).
+        - At least 1 **goal-anchored** prompt — bridges lesson content to the
+          member's declared primary goal.
+        - General prompts fill any remaining slots.
+
+        **Context parameters** (`lesson_id` and `quest_id`) are optional.
+        If omitted, the endpoint falls back to general ranked prompts with
+        `context_type: "general"` for all slots.
+
+        **A/B test:** Members are assigned to the `eve_learning_prompts_v1`
+        experiment (separate from the `eve_dynamic_prompts_v1` experiment used
+        by `/eve-prompts`).
+
+        **Fallback:** If the Learner Profile is unavailable, static learning
+        fallback prompts are returned and `is_fallback` is `true`.
+
+        **Latency target:** <1s. All computation is in-memory (no async calls
+        beyond the profile fetch). Reported in `meta.latency_ms`.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+        - name: lesson_id
+          in: query
+          required: false
+          description: |
+            ID of the lesson the member just watched.
+            Used to generate lesson-specific prompts.
+            Falls back to the first lesson of the quest if not found in mock data.
+          schema:
+            type: string
+            example: "l001"
+        - name: quest_id
+          in: query
+          required: false
+          description: |
+            ID of the quest (course) the lesson belongs to.
+            Used as a fallback when `lesson_id` is not found.
+          schema:
+            type: string
+            example: "q001"
+      responses:
+        "200":
+          description: |
+            Learning Assistant prompts returned successfully.
+            Always 200 — returns fallback prompts if profile is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningPromptsResponse"
+              example:
+                prompts:
+                  - prompt_id: "lesson_001"
+                    category: "reflection"
+                    text: "What stood out to you in Discovering Your Extraordinary Potential?"
+                    ranking_score: 0.95
+                    reason: "lesson-specific — anchored to \"Discovering Your Extraordinary Potential\""
+                    context_type: "lesson_specific"
+                  - prompt_id: "lesson_goal_001"
+                    category: "goal"
+                    text: "How does unlocking potential connect to your goal of Health?"
+                    ranking_score: 0.95
+                    reason: "goal-anchored — connects lesson to \"health\" goal"
+                    context_type: "goal_anchored"
+                  - prompt_id: "goal_001"
+                    category: "goal"
+                    text: "How is your Health journey going? Let's explore what's working for you."
+                    ranking_score: 0.7234
+                    reason: "connects to your declared goal (high-intent/high-momentum member)"
+                    context_type: "general"
+                ab_variant: "treatment"
+                is_fallback: false
+                meta:
+                  request_id: "req_abc123_xyz"
+                  latency_ms: 8
+                  member_state: 1
+                  adapter: "MockDataAdapter"
+                  lesson_id: "l001"
+                  quest_id: "q001"
+        "400":
+          description: Invalid member_id format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: "INVALID_MEMBER_ID"
+                  message: "member_id must be 1–64 alphanumeric/hyphen/underscore characters"
+                  request_id: "req_abc123_xyz"
+
+  /members/{member_id}/lesson-complete:
+    post:
+      tags:
+        - nudges
+      operationId: lessonComplete
+      summary: Record lesson completion and get a reflection prompt (UC-03)
+      description: |
+        Called when a member completes a lesson. Returns a post-lesson reflection
+        prompt that the client should display 2 seconds after completion.
+
+        **Reflection prompt personalisation:**
+        The prompt text is driven by the member's classified state (1–4):
+        - State 1 (High Intent / High Momentum): deep, goal-anchored question
+        - State 2 (High Intent / Low Momentum): reconnect to "why" — goal re-engagement
+        - State 3 (Low Intent / High Momentum): surface goal value, reference streak
+        - State 4 (Low Intent / Low Momentum): gentle, low-friction single question
+
+        **Decision D1:** All prompts are dismissible.
+
+        **A/B test:** Members are split 50/50 across the `eve_reflection_v1`
+        experiment. Control members receive `reflection_prompt: null`.
+
+        **Timing:** The 2-second delay before displaying the prompt is
+        client-side responsibility. The API returns the prompt immediately.
+
+        **Fallback:** Returns `reflection_prompt: null` if the lesson or member
+        is not found — the endpoint always responds 200.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LessonCompleteRequest"
+            example:
+              lesson_id: "l001"
+              quest_id: "q001"
+      responses:
+        "200":
+          description: Reflection prompt returned (or null for control variant)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LessonCompleteResponse"
+              example:
+                reflection_prompt:
+                  prompt_id: "reflect_member_001_l001_28123456"
+                  member_id: "member_001"
+                  lesson_id: "l001"
+                  quest_id: "q001"
+                  text: "What's one insight from \"Discovering Your Extraordinary Potential\" that you can apply to your health journey this week?"
+                  context_signal: "goal"
+                  member_state: 1
+                  dismissible: true
+                  ab_variant: "treatment"
+                  created_at: "2026-04-10T08:00:00.000Z"
+                ab_variant: "treatment"
+                meta:
+                  request_id: "req_abc123_xyz"
+                  latency_ms: 9
+                  member_state: 1
+                  lesson_id: "l001"
+                  quest_id: "q001"
+        "400":
+          description: Invalid member_id format or missing lesson_id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/streak-nudge:
+    get:
+      tags:
+        - nudges
+      operationId: getStreakNudge
+      summary: Get a streak-save nudge if the member is eligible (I3)
+      description: |
+        Returns a streak-save in-app nudge when all eligibility conditions are met:
+        1. The member has an active streak (`streak_days > 0`)
+        2. The member has not been active today (`last_active_at` >= 1 day ago)
+        3. The current server time is before 20:00 (8pm local time)
+
+        When not eligible, returns `{eligible: false}` with a reason code.
+
+        **Deep-link:** The nudge includes a structured deep-link to the member's
+        current lesson so the CTA takes them to exactly the right place in the app
+        (not the homepage).
+
+        **A/B test:** Members are split 50/50 across the `eve_streak_nudge_v1`
+        experiment. Treatment members receive the nudge; control members receive
+        `{eligible: false}` (to be implemented client-side via the ab_variant field
+        on the nudge object when it is returned).
+
+        **Decision D1:** All nudges are dismissible.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+      responses:
+        "200":
+          description: |
+            Streak nudge eligibility result.
+            Always 200 — never 404 for unknown members (returns `eligible: false`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreakNudgeResponse"
+              examples:
+                eligible:
+                  summary: Member eligible — nudge returned
+                  value:
+                    eligible: true
+                    nudge:
+                      nudge_id: "nudge_streak_member_002_28123456"
+                      nudge_type: "streak_save"
+                      member_id: "member_002"
+                      message: "You're on a 10-day streak — protect it! Jump back in with \"Be Extraordinary\" before midnight."
+                      deep_link:
+                        url: "eve://lessons/l001?member=member_002&source=streak_nudge"
+                        lesson_id: "l001"
+                        member_id: "member_002"
+                        source: "streak_nudge"
+                      expires_at: "2026-04-10T20:00:00.000Z"
+                      dismissible: true
+                      ab_variant: "treatment"
+                      created_at: "2026-04-10T14:30:00.000Z"
+                      streak_days: 10
+                      suggested_lesson_id: "l001"
+                after_8pm:
+                  summary: Not eligible — after 8pm cutoff
+                  value:
+                    eligible: false
+                    reason: "after_8pm"
+                no_streak:
+                  summary: Not eligible — no active streak
+                  value:
+                    eligible: false
+                    reason: "no_active_streak"
+        "400":
+          description: Invalid member_id format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/momentum-nudge:
+    get:
+      tags:
+        - momentum
+      operationId: getMomentumNudge
+      summary: Get a day3 or day7 lapse re-entry nudge if eligible (Sprint 5)
+      description: |
+        Returns a lapse re-entry nudge when a member has drifted away:
+
+        **day3:** Member has been inactive for 3–6 days (dormancy = drifting).
+        Warm, encouraging tone. Fires on the same day for eligible members.
+
+        **day7:** Member has been inactive for 7+ days (dormancy = at_risk or churned).
+        Stronger tone with urgency framing.
+
+        **Ineligible cases:** Returns `{eligible: false}` for:
+        - Members active within the last 3 days
+        - Unknown members
+
+        **Deep-link:** Points to the member's current lesson (re_entry source).
+
+        **A/B tests:**
+        - day3: `eve_day3_nudge_v1` experiment
+        - day7: `eve_day7_nudge_v1` experiment
+
+        **Decision D1:** All nudges are dismissible.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+      responses:
+        "200":
+          description: |
+            Lapse nudge eligibility result.
+            Always 200 — never 404 for unknown members (returns `eligible: false`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MomentumNudgeResponse"
+              examples:
+                day3_eligible:
+                  summary: Member eligible — day3 nudge returned
+                  value:
+                    eligible: true
+                    nudge:
+                      nudge_id: "nudge_day3_member_042_28123456"
+                      nudge_type: "re_entry"
+                      member_id: "member_042"
+                      message: "Hey — it's been 3 days since your last session. Your health journey is waiting. Ready to continue \"WildFit\"?"
+                      deep_link:
+                        url: "eve://lessons/l011?member=member_042&source=re_entry"
+                        lesson_id: "l011"
+                        member_id: "member_042"
+                        source: "re_entry"
+                      expires_at: "2026-04-12T08:00:00.000Z"
+                      dismissible: true
+                      ab_variant: "treatment"
+                      created_at: "2026-04-10T08:00:00.000Z"
+                not_eligible:
+                  summary: Not eligible — member is active
+                  value:
+                    eligible: false
+        "400":
+          description: Invalid member_id format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/coaching-card:
+    get:
+      tags:
+        - momentum
+      operationId: getCoachingCard
+      summary: Get a stuck-point coaching card if member has stalled (Sprint 5)
+      description: |
+        Returns a coaching card when a member has been on the same lesson for
+        7 or more days — indicating they may be stuck or disengaged.
+
+        **Stuck detection:** Uses `days_on_current_lesson` from member data.
+        Threshold: 7+ days on the same lesson.
+
+        **Coaching card:** Contains 3 actions to help the member move forward:
+        - **Skip:** Skip this lesson and continue the quest
+        - **Explain:** Ask Eve to break down the lesson content
+        - **Related:** Show a related lesson or quest
+
+        Each action includes a deep-link URL targeting the exact trigger point.
+
+        **A/B test:** `eve_coaching_card_v1` experiment (50/50 split).
+
+        **Not stuck:** Returns `{stuck: false}` when:
+        - Member has been on current lesson < 7 days
+        - Member is not found
+
+        **Decision D1:** All coaching cards are non-blocking (member can ignore).
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+        - name: lesson_id
+          in: query
+          required: false
+          description: |
+            Optional lesson ID to check stuck status against.
+            If omitted, uses the member's current quest lesson.
+          schema:
+            type: string
+            example: "l003"
+      responses:
+        "200":
+          description: |
+            Stuck detection result.
+            Always 200 — never 404 for unknown members (returns `stuck: false`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoachingCardResponse"
+              examples:
+                stuck:
+                  summary: Member stuck — coaching card returned
+                  value:
+                    stuck: true
+                    card:
+                      card_id: "coaching_member_007_l003_28123456"
+                      member_id: "member_007"
+                      lesson_id: "l003"
+                      heading: "Feeling stuck on \"Crafting Your Life Vision\"? Here's what you can do."
+                      message: "It looks like you've been on \"Crafting Your Life Vision\" for 10 days. Sometimes a lesson needs a different angle. What would help?"
+                      actions:
+                        - action: "skip"
+                          label: "Skip this lesson"
+                          deep_link: "eve://lessons/l003?member=member_007&source=coaching_skip&action=skip"
+                        - action: "explain"
+                          label: "Break it down for me"
+                          deep_link: "eve://lessons/l003?member=member_007&source=coaching_explain&action=explain"
+                        - action: "related"
+                          label: "Show me something related"
+                          deep_link: "eve://quests/q002?member=member_007&source=coaching_related&action=related"
+                      ab_variant: "treatment"
+                      created_at: "2026-04-10T08:00:00.000Z"
+                not_stuck:
+                  summary: Member not stuck
+                  value:
+                    stuck: false
+        "400":
+          description: Invalid member_id format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/send-nudge:
+    post:
+      tags:
+        - braze
+      operationId: sendNudge
+      summary: Send a push notification nudge via Braze (Sprint 6)
+      description: |
+        Triggers the full nudge delivery pipeline for a member:
+
+        1. **Fatigue guard check** — if the member received a nudge in the last 24h,
+           the request is accepted but `delivered: false, channel: blocked` is returned.
+        2. **Build NudgeEvent** — constructs the appropriate nudge for the requested type.
+        3. **A/B test** — assigns the member to `eve_push_nudge_v1` experiment.
+        4. **Delivery decision:**
+           - If Braze is available AND member is in **treatment**: push via Braze API
+           - If Braze is available AND member is in **control**: in-app only
+           - If Braze is **unavailable** (BRAZE_ENABLED=false): fallback to in-app
+        5. **Fatigue guard record** — marks the nudge as sent (for 24h cooldown).
+        6. **Amplitude event** — fires `push_delivered` with ab_variant.
+
+        **Nudge types:**
+        | Type         | NudgeEvent built                                |
+        |--------------|------------------------------------------------|
+        | streak_save  | StreakNudge — protect active streak             |
+        | day3         | LapseNudge (day3) — 3-day inactive re-entry    |
+        | day7         | LapseNudge (day7) — 7-day inactive re-entry    |
+        | coaching     | LapseNudge (day7) — coaching re-entry variant   |
+
+        **Decision D3:** Uses the new Braze contract (not the existing integration).
+
+        **Fallback:** If Braze is down (`BRAZE_ENABLED=false`), the nudge is still
+        delivered via in-app channel and `channel: fallback` is returned.
+
+        **Fatigue guard:** Only 1 nudge per member per 24h. Second call within
+        the window returns `{delivered: false, channel: blocked}` with HTTP 200.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "member_001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendNudgeRequest"
+            examples:
+              streak_save:
+                summary: Streak-save nudge
+                value:
+                  nudge_type: "streak_save"
+              day7:
+                summary: Day-7 lapse re-entry nudge
+                value:
+                  nudge_type: "day7"
+      responses:
+        "200":
+          description: |
+            Nudge delivery result.
+            Always 200 — includes the delivery outcome regardless of fatigue guard or Braze status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushNotificationResult"
+              examples:
+                push_delivered:
+                  summary: Delivered via Braze push
+                  value:
+                    delivered: true
+                    channel: "push"
+                    nudge_event:
+                      nudge_id: "nudge_re_entry_member_001_28123456"
+                      nudge_type: "re_entry"
+                      member_id: "member_001"
+                      message: "A week away is a turning point..."
+                      deep_link:
+                        url: "eve://lessons/l001?member=member_001&source=re_entry"
+                        lesson_id: "l001"
+                        member_id: "member_001"
+                        source: "re_entry"
+                      expires_at: "2026-04-12T08:00:00.000Z"
+                      dismissible: true
+                      ab_variant: "treatment"
+                      created_at: "2026-04-10T08:00:00.000Z"
+                    braze_response:
+                      success: true
+                      message_id: "braze_msg_1a2b3c"
+                fallback:
+                  summary: Braze unavailable — in-app fallback
+                  value:
+                    delivered: true
+                    channel: "fallback"
+                    nudge_event:
+                      nudge_id: "nudge_re_entry_member_001_28123456"
+                      nudge_type: "re_entry"
+                      member_id: "member_001"
+                      message: "A week away is a turning point..."
+                      deep_link:
+                        url: "eve://lessons/l001?member=member_001&source=re_entry"
+                        lesson_id: "l001"
+                        member_id: "member_001"
+                        source: "re_entry"
+                      expires_at: "2026-04-12T08:00:00.000Z"
+                      dismissible: true
+                      ab_variant: "treatment"
+                      created_at: "2026-04-10T08:00:00.000Z"
+                blocked:
+                  summary: Fatigue guard blocked (1 nudge per 24h already sent)
+                  value:
+                    delivered: false
+                    channel: "blocked"
+                    nudge_event:
+                      nudge_id: "nudge_streak_save_member_001_28123457"
+                      nudge_type: "streak_save"
+                      member_id: "member_001"
+                      message: "Your 5-day streak is at risk..."
+                      deep_link: null
+                      expires_at: "2026-04-10T20:00:00.000Z"
+                      dismissible: true
+                      ab_variant: "control"
+                      created_at: "2026-04-10T09:00:00.000Z"
+        "400":
+          description: Invalid member_id format or missing/invalid nudge_type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_nudge_type:
+                  summary: Invalid nudge type
+                  value:
+                    error:
+                      code: "INVALID_REQUEST"
+                      message: "Request body must include nudge_type: one of streak_save, day3, day7, coaching"
+                      request_id: "req_abc123_xyz"
+                invalid_member_id:
+                  summary: Invalid member_id
+                  value:
+                    error:
+                      code: "INVALID_MEMBER_ID"
+                      message: "member_id must be 1–64 alphanumeric/hyphen/underscore characters"
+                      request_id: "req_abc123_xyz"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: "MEMBER_NOT_FOUND"
+                  message: "No data found for member_id: unknown_member"
+                  request_id: "req_abc123_xyz"
+
+  /members/{member_id}/quest-complete:
+    post:
+      tags:
+        - recommendations
+      operationId: recordQuestComplete
+      summary: Record quest completion and return next-chapter recommendations (Sprint 7)
+      description: |
+        Records a real-time quest completion event for a member and immediately
+        returns 3–5 next-chapter quest recommendations anchored to the member's
+        declared goal category.
+
+        **Quest completion event:** Produced synchronously and included in the response.
+        The `completion_percentage` field supports partial values (e.g. 80 for
+        the "almost there" scenario) — callers may POST before 100% is reached.
+
+        **Recommendation engine:**
+        - Anchored to `primary_goal_category` (declared at FTU or updated in-app)
+        - Excludes all quests the member has already completed (including the newly completed one)
+        - Sorted by relevance score descending
+        - Target latency: <2s (in-memory, typically <5ms)
+
+        **Fallback:** If the member is unknown or the engine is unavailable,
+        `is_fallback: true` is returned with an empty recommendations array.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "sofia_demo"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestCompleteRequest"
+            example:
+              quest_id: "hb_q001"
+              completion_percentage: 100
+      responses:
+        "200":
+          description: Quest completion event recorded; next-chapter recommendations returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestCompleteResponse"
+              example:
+                event:
+                  member_id: "sofia_demo"
+                  quest_id: "hb_q001"
+                  completed_at: "2026-04-10T09:00:00.000Z"
+                  completion_percentage: 100
+                member_id: "sofia_demo"
+                recommendations:
+                  - quest_id: "hb_q003"
+                    title: "Morning Ritual Mastery"
+                    category: "habit_builder"
+                    relevance_score: 0.9
+                    reason: "Matches your habit builder goal — Design a morning routine that primes your mind and body."
+                  - quest_id: "hb_q004"
+                    title: "The 6-Phase Meditation Practice"
+                    category: "habit_builder"
+                    relevance_score: 0.85
+                    reason: "Matches your habit builder goal — Commit to a daily six-phase practice."
+                generated_at: "2026-04-10T09:00:00.000Z"
+                is_fallback: false
+        "400":
+          description: Invalid member_id format or missing quest_id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/almost-there:
+    get:
+      tags:
+        - recommendations
+      operationId: getAlmostThere
+      summary: Get "almost there" prompt when member is 80%+ through a quest (Sprint 7)
+      description: |
+        Returns an encouraging "almost there" prompt when the member's quest
+        completion percentage is at or above the 80% threshold.
+
+        Returns `{eligible: false}` when `completion_pct < 80`.
+
+        The prompt is personalised with:
+        - The quest title
+        - The member's declared goal category (if available)
+        - Exact completion percentage
+
+        **Threshold:** >= 80%
+        **Copy variant:** At >= 95% a more celebratory "almost done!" message is returned.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "sofia_demo"
+        - name: quest_id
+          in: query
+          required: true
+          description: The quest the member is progressing through
+          schema:
+            type: string
+            example: "hb_q003"
+        - name: completion_pct
+          in: query
+          required: true
+          description: Current completion percentage (0–100)
+          schema:
+            type: number
+            minimum: 0
+            maximum: 100
+            example: 82
+      responses:
+        "200":
+          description: Almost-there prompt (eligible) or ineligible indicator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlmostThereResponse"
+              examples:
+                eligible:
+                  summary: Member is at 82% — prompt fires
+                  value:
+                    eligible: true
+                    message: "You're almost there! 82% done with \"Morning Ritual Mastery\" on your habit builder journey. Only 18% to go — keep the momentum going!"
+                    completion_percentage: 82
+                not_eligible:
+                  summary: Member is at 79% — prompt does not fire
+                  value:
+                    eligible: false
+        "400":
+          description: Invalid member_id or missing required query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/next-chapter:
+    get:
+      tags:
+        - recommendations
+      operationId: getNextChapter
+      summary: Get 3–5 next-chapter quest recommendations (Sprint 7)
+      description: |
+        Returns 3–5 recommended next quests for a member.
+
+        **Algorithm:**
+        1. Resolve the member's `primary_goal_category` from their Learner Profile.
+        2. Retrieve all quests in that category from the catalogue.
+        3. Exclude quests the member has already completed.
+        4. Sort by `relevance_score` descending and return the top 3 (default).
+
+        **Goal anchoring:** All recommendations belong to the member's declared
+        goal category. If no goal is declared, the intent-based fallback is used.
+
+        **Fallback:** When the member's goal category is unknown or all category
+        quests are completed, `is_fallback: true` and top catalogue quests are
+        returned across all categories.
+
+        **Latency target:** <2s.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier (alphanumeric, hyphens, underscores; 1–64 chars)
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+            example: "sofia_demo"
+      responses:
+        "200":
+          description: Next-chapter recommendations returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecommendationResponse"
+              example:
+                member_id: "sofia_demo"
+                recommendations:
+                  - quest_id: "hb_q003"
+                    title: "Morning Ritual Mastery"
+                    category: "habit_builder"
+                    relevance_score: 0.9
+                    reason: "Matches your habit builder goal — Design a morning routine that primes your mind and body."
+                  - quest_id: "hb_q004"
+                    title: "The 6-Phase Meditation Practice"
+                    category: "habit_builder"
+                    relevance_score: 0.85
+                    reason: "Matches your habit builder goal — Commit to a daily six-phase practice."
+                generated_at: "2026-04-10T09:00:00.000Z"
+                is_fallback: false
+        "400":
+          description: Invalid member_id format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    # ─── Health ────────────────────────────────────────────────────────────────
+    HealthResponse:
+      type: object
+      required: [status, adapter, data_freshness, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+          description: "ok = adapter reachable; degraded = adapter health check failed"
+        adapter:
+          type: string
+          example: "MockDataAdapter"
+        data_freshness:
+          type: string
+          enum: [realtime, hourly, daily]
+        timestamp:
+          type: string
+          format: date-time
+
+    # ─── Top-level response wrappers ──────────────────────────────────────────
+    LearnerProfileResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/LearnerProfile"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    ResponseMeta:
+      type: object
+      required: [request_id, latency_ms, adapter, data_freshness]
+      properties:
+        request_id:
+          type: string
+          description: Unique identifier for this request (for tracing)
+          example: "req_abc123_xyz"
+        latency_ms:
+          type: integer
+          description: Server-side processing time in milliseconds
+          example: 12
+        adapter:
+          type: string
+          description: Name of the data adapter that served this request
+          example: "MockDataAdapter"
+        data_freshness:
+          type: string
+          enum: [realtime, hourly, daily]
+          description: Freshness cadence of the underlying data source
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_MEMBER_ID
+                - MEMBER_NOT_FOUND
+                - INTERNAL_ERROR
+                - NOT_FOUND
+            message:
+              type: string
+            request_id:
+              type: string
+
+    # ─── C1 Lite Learner Profile ──────────────────────────────────────────────
+    LearnerProfile:
+      type: object
+      required:
+        - member_id
+        - schema_version
+        - profile_built_at
+        - data_freshness
+        - intent
+        - engagement
+        - learning
+        - pulse_signals
+        - member_state
+      properties:
+        member_id:
+          type: string
+          description: Mindvalley member ID
+          example: "member_001"
+        schema_version:
+          type: string
+          enum: ["1.0"]
+          description: C1 Lite schema version
+        profile_built_at:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp when this profile was computed
+        data_freshness:
+          type: string
+          enum: [realtime, hourly, daily]
+          description: Freshness cadence of the data that powers this profile
+        intent:
+          $ref: "#/components/schemas/IntentDomain"
+        engagement:
+          $ref: "#/components/schemas/EngagementDomain"
+        learning:
+          $ref: "#/components/schemas/LearningDomain"
+        pulse_signals:
+          $ref: "#/components/schemas/PulseSignalsDomain"
+        member_state:
+          $ref: "#/components/schemas/MemberStateDomain"
+
+    # ─── Intent Domain ─────────────────────────────────────────────────────────
+    IntentDomain:
+      type: object
+      required:
+        - goal_declarations
+        - primary_goal_category
+        - eve_conversation_frequency_30d
+        - prompt_ctr
+        - ftu_goal_from_mock
+      properties:
+        goal_declarations:
+          type: array
+          description: All goals declared by the member, most recent first
+          items:
+            $ref: "#/components/schemas/GoalDeclaration"
+        primary_goal_category:
+          type: string
+          nullable: true
+          description: Primary/active goal category (null if no goals declared)
+          example: "health"
+        eve_conversation_frequency_30d:
+          type: integer
+          minimum: 0
+          description: Number of Eve conversations in the last 30 days
+        prompt_ctr:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Click-through rate on Eve prompt suggestions
+        ftu_goal_from_mock:
+          type: boolean
+          description: "B3 workaround flag: true when FTU goal data came from the mock adapter"
+
+    GoalDeclaration:
+      type: object
+      required: [category, declared_at, source]
+      properties:
+        category:
+          type: string
+          example: "health"
+        declared_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [ftu, in_app, onboarding_survey]
+        raw_text:
+          type: string
+          nullable: true
+          description: Optional free-text goal description
+
+    # ─── Engagement Domain ─────────────────────────────────────────────────────
+    EngagementDomain:
+      type: object
+      required:
+        - streak_days
+        - last_active_at
+        - session_frequency_weekly
+        - total_active_days
+      properties:
+        streak_days:
+          type: integer
+          minimum: 0
+          description: Current streak in days
+        last_active_at:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp of last platform activity
+        session_frequency_weekly:
+          type: number
+          format: float
+          minimum: 0.0
+          description: Average sessions per week over the last 4 weeks
+        total_active_days:
+          type: integer
+          minimum: 0
+          description: Total days the member has been active on the platform
+
+    # ─── Learning Domain ───────────────────────────────────────────────────────
+    LearningDomain:
+      type: object
+      required:
+        - lessons_completed_total
+        - lessons_completed_30d
+        - quests_completed_total
+        - current_quest
+        - recent_lessons
+        - quests
+      properties:
+        lessons_completed_total:
+          type: integer
+          minimum: 0
+        lessons_completed_30d:
+          type: integer
+          minimum: 0
+        quests_completed_total:
+          type: integer
+          minimum: 0
+        current_quest:
+          nullable: true
+          oneOf:
+            - $ref: "#/components/schemas/QuestRecord"
+            - type: "null"
+          description: The quest currently in progress (or most recently touched), null if none
+        recent_lessons:
+          type: array
+          description: Last 10 lesson records
+          items:
+            $ref: "#/components/schemas/LessonRecord"
+        quests:
+          type: array
+          description: All quest records for this member
+          items:
+            $ref: "#/components/schemas/QuestRecord"
+
+    LessonRecord:
+      type: object
+      required: [lesson_id, quest_id, completed_at, duration_seconds]
+      properties:
+        lesson_id:
+          type: string
+        quest_id:
+          type: string
+        completed_at:
+          type: string
+          format: date-time
+        duration_seconds:
+          type: integer
+          minimum: 0
+
+    QuestRecord:
+      type: object
+      required:
+        - quest_id
+        - title
+        - category
+        - completed_at
+        - completion_percentage
+        - lessons_completed
+        - total_lessons
+      properties:
+        quest_id:
+          type: string
+        title:
+          type: string
+        category:
+          type: string
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO-8601 timestamp; null if quest is still in progress
+        completion_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        lessons_completed:
+          type: integer
+          minimum: 0
+        total_lessons:
+          type: integer
+          minimum: 0
+
+    # ─── Pulse Signals Domain ──────────────────────────────────────────────────
+    PulseSignalsDomain:
+      type: object
+      required:
+        - dormancy_diagnosis
+        - momentum_score
+        - days_since_last_active
+        - streak_break_risk
+        - days_inactive_streak
+      properties:
+        dormancy_diagnosis:
+          type: string
+          enum: [active, drifting, at_risk, churned]
+          description: |
+            Dormancy level based on days since last activity:
+            - active: < 3 days
+            - drifting: 3–7 days
+            - at_risk: 7–30 days
+            - churned: > 30 days
+        momentum_score:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: |
+            Weighted momentum score (0.0–1.0).
+            Derived from: streak_days (40%), lessons_completed_30d (35%),
+            session_frequency_weekly (25%).
+        days_since_last_active:
+          type: integer
+          minimum: 0
+        streak_break_risk:
+          type: boolean
+          description: True if the member's streak will break today if they don't act
+        days_inactive_streak:
+          type: integer
+          minimum: 0
+
+    # ─── Member State Domain ───────────────────────────────────────────────────
+    MemberStateDomain:
+      type: object
+      required:
+        - state
+        - label
+        - confidence_score
+        - used_fallback
+        - computed_at
+      properties:
+        state:
+          type: integer
+          enum: [1, 2, 3, 4]
+          description: |
+            Member state classification:
+            1 = High Intent / High Momentum (nurture and deepen)
+            2 = High Intent / Low Momentum (re-activate)
+            3 = Low Intent / High Momentum (surface goal value)
+            4 = Low Intent / Low Momentum (re-onboard / churn risk)
+        label:
+          type: string
+          example: "High Intent / High Momentum"
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: |
+            Confidence in the state classification (0.0–1.0).
+            Penalised when used_fallback is true (sparse signals).
+        used_fallback:
+          type: boolean
+          description: |
+            True when the fallback rule was applied (< 3 intent signals present).
+            When true, only Intent Readiness drives classification.
+        computed_at:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp when this state was computed
+
+    # ─── Sprint 2: Dynamic Prompts ────────────────────────────────────────────
+    PromptCategory:
+      type: string
+      enum: [goal, content, reflection, re_entry]
+      description: |
+        Prompt category aligned to member journey moments:
+        - goal: Connect current activity to declared goal
+        - content: Recommend specific quests / lessons
+        - reflection: Journaling / self-assessment
+        - re_entry: Low-friction re-engagement for dormant members
+
+    RankedPrompt:
+      type: object
+      required: [prompt_id, category, text, ranking_score, reason]
+      properties:
+        prompt_id:
+          type: string
+          description: Stable unique identifier for the prompt template
+          example: "goal_001"
+        category:
+          $ref: "#/components/schemas/PromptCategory"
+        text:
+          type: string
+          description: Personalised prompt text (placeholders resolved)
+          example: "How is your Health journey going? Let's explore what's working for you."
+        ranking_score:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Final ranking score used to order prompts (higher = more relevant)
+          example: 0.7234
+        reason:
+          type: string
+          description: Human-readable explanation of why this prompt was surfaced
+          example: "connects to your declared goal (high-intent/high-momentum member)"
+
+    EvePromptsResponse:
+      type: object
+      required: [prompts, ab_variant, is_fallback, meta]
+      properties:
+        prompts:
+          type: array
+          minItems: 2
+          maxItems: 3
+          description: Ranked prompts to surface in Eve chat (2–3 items)
+          items:
+            $ref: "#/components/schemas/RankedPrompt"
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+          description: A/B test variant this member is assigned to (deterministic, stable)
+        is_fallback:
+          type: boolean
+          description: |
+            true when static fallback prompts are returned (profile unavailable).
+            false when prompts are personalised from the member's Learner Profile.
+        meta:
+          type: object
+          required: [request_id, latency_ms, adapter, member_state]
+          properties:
+            request_id:
+              type: string
+              example: "req_abc123_xyz"
+            latency_ms:
+              type: integer
+              minimum: 0
+              description: Server-side processing time in milliseconds
+            adapter:
+              type: string
+              example: "MockDataAdapter"
+            member_state:
+              type: integer
+              nullable: true
+              enum: [1, 2, 3, 4, null]
+              description: Classified member state (null when profile unavailable / fallback)
+
+    PromptCtrRequest:
+      type: object
+      required: [prompt_id]
+      properties:
+        prompt_id:
+          type: string
+          description: ID of the prompt the member clicked
+          example: "goal_001"
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+          description: A/B variant at click time (optional; inferred from member_id if omitted)
+        clicked_at:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp of the click (defaults to server time if omitted)
+        member_state:
+          type: integer
+          enum: [1, 2, 3, 4]
+          nullable: true
+          description: Member state at click time (optional, for downstream analytics)
+
+    PromptCtrResponse:
+      type: object
+      required: [recorded, event_id, amplitude_event]
+      properties:
+        recorded:
+          type: boolean
+          description: Always true when the request succeeds
+        event_id:
+          type: string
+          description: Unique identifier for this click event record
+        amplitude_event:
+          $ref: "#/components/schemas/AmplitudeEvent"
+
+    # ─── Sprint 3: Learning Assistant ────────────────────────────────────────
+    LearningPromptContextType:
+      type: string
+      enum: [lesson_specific, goal_anchored, general]
+      description: |
+        What drove the selection of this Learning Assistant prompt:
+        - lesson_specific: anchored to the lesson_id / quest_id in the request
+        - goal_anchored: anchored to the member's declared primary goal
+        - general: general reflection / re-entry prompt (filler)
+
+    LearningRankedPrompt:
+      allOf:
+        - $ref: "#/components/schemas/RankedPrompt"
+        - type: object
+          required: [context_type]
+          properties:
+            context_type:
+              $ref: "#/components/schemas/LearningPromptContextType"
+
+    LearningPromptsResponse:
+      type: object
+      required: [prompts, ab_variant, is_fallback, meta]
+      properties:
+        prompts:
+          type: array
+          minItems: 2
+          maxItems: 3
+          description: |
+            2–3 Learning Assistant prompts.
+            At least 1 lesson_specific and 1 goal_anchored when context is available.
+          items:
+            $ref: "#/components/schemas/LearningRankedPrompt"
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+          description: |
+            A/B variant for the `eve_learning_prompts_v1` experiment.
+            Stable and deterministic per member.
+        is_fallback:
+          type: boolean
+          description: |
+            true when static fallback prompts are returned (profile unavailable).
+            false when prompts are personalised from the member's Learner Profile.
+        meta:
+          type: object
+          required: [request_id, latency_ms, adapter, member_state, lesson_id, quest_id]
+          properties:
+            request_id:
+              type: string
+              example: "req_abc123_xyz"
+            latency_ms:
+              type: integer
+              minimum: 0
+              description: Server-side processing time in milliseconds (target <1000ms)
+            adapter:
+              type: string
+              example: "MockDataAdapter"
+            member_state:
+              type: integer
+              nullable: true
+              enum: [1, 2, 3, 4, null]
+              description: Classified member state (null when profile unavailable)
+            lesson_id:
+              type: string
+              nullable: true
+              description: lesson_id echoed from the query string (null if not provided)
+              example: "l001"
+            quest_id:
+              type: string
+              nullable: true
+              description: quest_id echoed from the query string (null if not provided)
+              example: "q001"
+
+    # ─── Sprint 4: Nudges & Streak-Save ─────────────────────────────────────────
+    DeepLink:
+      type: object
+      required: [url, lesson_id, member_id, source]
+      description: |
+        Structured deep-link to an exact lesson for a specific member.
+        URL format: eve://lessons/{lessonId}?member={memberId}&source={source}
+      properties:
+        url:
+          type: string
+          description: Full deep-link URL
+          example: "eve://lessons/l001?member=member_001&source=streak_nudge"
+        lesson_id:
+          type: string
+          description: The lesson the deep-link targets
+          example: "l001"
+        member_id:
+          type: string
+          description: The member this link was generated for
+          example: "member_001"
+        source:
+          type: string
+          enum: [streak_nudge, reflection_prompt, re_entry, dashboard]
+          description: Origin surface that generated this link (for attribution)
+
+    ReflectionPrompt:
+      type: object
+      required:
+        - prompt_id
+        - member_id
+        - lesson_id
+        - quest_id
+        - text
+        - context_signal
+        - member_state
+        - dismissible
+        - ab_variant
+        - created_at
+      description: |
+        Post-lesson reflection prompt (UC-03).
+        Fires 2 seconds after lesson completion (timing is client-side).
+        Uses the member's state context to personalise the question.
+      properties:
+        prompt_id:
+          type: string
+          description: Unique identifier for this reflection prompt instance
+        member_id:
+          type: string
+        lesson_id:
+          type: string
+          description: The lesson just completed
+        quest_id:
+          type: string
+          description: Quest the lesson belongs to
+        text:
+          type: string
+          description: The reflection question shown to the member
+        context_signal:
+          type: string
+          enum: [goal, streak, lesson, re_entry]
+          description: |
+            Driving context signal:
+            - goal: prompt is anchored to the member's declared goal
+            - streak: prompt references the member's streak momentum
+            - lesson: prompt is specific to the lesson topic
+            - re_entry: gentle re-onboarding prompt for low-momentum members
+        member_state:
+          type: integer
+          enum: [1, 2, 3, 4]
+          description: Member state at time of generation (for analytics)
+        dismissible:
+          type: boolean
+          description: Always true (Decision D1 — dismissible approach)
+          example: true
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+          description: A/B test variant (nudge vs control)
+        created_at:
+          type: string
+          format: date-time
+
+    StreakNudge:
+      type: object
+      required:
+        - nudge_id
+        - nudge_type
+        - member_id
+        - message
+        - deep_link
+        - expires_at
+        - dismissible
+        - ab_variant
+        - created_at
+        - streak_days
+        - suggested_lesson_id
+      description: |
+        Streak-save in-app nudge.
+        Fires when a member has an active streak AND has not been active today AND
+        the current server hour is before 20:00 (8pm).
+        Expires at 8pm today.
+      properties:
+        nudge_id:
+          type: string
+          description: Stable unique identifier for this nudge instance
+        nudge_type:
+          type: string
+          enum: [streak_save]
+        member_id:
+          type: string
+        message:
+          type: string
+          description: Primary message shown to the member (personalised by streak length)
+        deep_link:
+          $ref: "#/components/schemas/DeepLink"
+        expires_at:
+          type: string
+          format: date-time
+          description: 8pm today — after this the nudge must not be shown
+        dismissible:
+          type: boolean
+          description: Always true (Decision D1)
+          example: true
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+        created_at:
+          type: string
+          format: date-time
+        streak_days:
+          type: integer
+          minimum: 0
+          description: Current streak days (for analytics)
+        suggested_lesson_id:
+          type: string
+          description: The lesson the deep-link navigates to
+
+    LessonCompleteRequest:
+      type: object
+      required: [lesson_id]
+      properties:
+        lesson_id:
+          type: string
+          description: ID of the lesson just completed
+          example: "l001"
+        quest_id:
+          type: string
+          description: ID of the quest the lesson belongs to (optional but recommended)
+          example: "q001"
+
+    LessonCompleteResponse:
+      type: object
+      required: [reflection_prompt, ab_variant, meta]
+      properties:
+        reflection_prompt:
+          nullable: true
+          description: |
+            The reflection prompt for the member.
+            null when the member is in the control variant or when the lesson/member is not found.
+          oneOf:
+            - $ref: "#/components/schemas/ReflectionPrompt"
+            - type: "null"
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+          description: A/B test variant for the eve_reflection_v1 experiment
+        meta:
+          type: object
+          required: [request_id, latency_ms, member_state, lesson_id, quest_id]
+          properties:
+            request_id:
+              type: string
+            latency_ms:
+              type: integer
+            member_state:
+              type: integer
+              nullable: true
+              enum: [1, 2, 3, 4, null]
+            lesson_id:
+              type: string
+              description: lesson_id echoed from the request body
+            quest_id:
+              type: string
+              description: quest_id echoed from the request body
+
+    StreakNudgeResponse:
+      type: object
+      required: [eligible]
+      description: |
+        When eligible is true, the nudge field is present.
+        When eligible is false, the reason field explains why.
+      properties:
+        eligible:
+          type: boolean
+        nudge:
+          description: Present only when eligible is true
+          $ref: "#/components/schemas/StreakNudge"
+        reason:
+          type: string
+          enum: [no_active_streak, already_active_today, after_8pm, member_not_found]
+          description: Present only when eligible is false
+
+    AmplitudeEvent:
+      type: object
+      required: [event_type, user_id, time, event_properties, user_properties, insert_id]
+      description: |
+        Structured Amplitude HTTP API v2 event.
+        Conforms to the Amplitude event shape for direct forwarding.
+      properties:
+        event_type:
+          type: string
+          enum: [prompt_surfaced, prompt_clicked]
+          description: Amplitude event name
+        user_id:
+          type: string
+          description: Mindvalley member ID (maps to Amplitude user_id)
+        time:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp of the event
+        event_properties:
+          type: object
+          description: Event-specific properties (varies by event_type)
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+              - type: "null"
+        user_properties:
+          type: object
+          description: User-level properties to set/update on the Amplitude user object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+              - type: "null"
+        insert_id:
+          type: string
+          description: Idempotency key for Amplitude deduplication (minute-level granularity)
+
+    # ─── Sprint 5: Momentum Nudges ────────────────────────────────────────────
+    LapseNudgeType:
+      type: string
+      enum: [day3, day7, none]
+      description: |
+        Classifies which lapse nudge (if any) should fire for a member:
+        - day3: 3–6 days inactive (drifting window) — warm, encouraging
+        - day7: 7+ days inactive (at_risk or churned) — stronger re-entry
+        - none: member is active (< 3 days since last activity)
+
+    CoachingAction:
+      type: object
+      required: [action, label, deep_link]
+      description: A single CTA action on a stuck-point coaching card.
+      properties:
+        action:
+          type: string
+          enum: [skip, explain, related]
+          description: |
+            Machine-readable action type:
+            - skip: skip this lesson and continue the quest
+            - explain: ask Eve to break down the lesson
+            - related: show a related lesson or quest
+        label:
+          type: string
+          description: Human-readable label for the CTA button
+          example: "Skip this lesson"
+        deep_link:
+          type: string
+          description: Deep-link URL for this CTA action
+          example: "eve://lessons/l003?member=member_007&source=coaching_skip&action=skip"
+
+    CoachingCard:
+      type: object
+      required: [card_id, member_id, lesson_id, heading, message, actions, ab_variant, created_at]
+      description: |
+        Coaching card surfaced when a member has been on the same lesson for 7+ days.
+        Contains 3 actions: skip, explain, and related.
+        All deep-links navigate to the exact stuck lesson or quest.
+      properties:
+        card_id:
+          type: string
+          description: Unique identifier for this coaching card instance
+        member_id:
+          type: string
+          description: The member this card is for
+        lesson_id:
+          type: string
+          description: The lesson the member is stuck on
+        heading:
+          type: string
+          description: Human-readable heading for the coaching card
+          example: "Feeling stuck on \"Crafting Your Life Vision\"? Here's what you can do."
+        message:
+          type: string
+          description: Supporting context message
+        actions:
+          type: array
+          minItems: 3
+          maxItems: 3
+          description: Exactly 3 CTA actions (skip, explain, related)
+          items:
+            $ref: "#/components/schemas/CoachingAction"
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+          description: A/B test variant for the eve_coaching_card_v1 experiment
+        created_at:
+          type: string
+          format: date-time
+
+    MomentumNudgeResponse:
+      type: object
+      required: [eligible]
+      description: |
+        When eligible is true, the nudge field contains a NudgeEvent (re_entry type).
+        When eligible is false, no nudge data is returned.
+      properties:
+        eligible:
+          type: boolean
+        nudge:
+          description: Present only when eligible is true
+          $ref: "#/components/schemas/MomentumNudge"
+
+    MomentumNudge:
+      type: object
+      required: [nudge_id, nudge_type, member_id, message, deep_link, expires_at, dismissible, ab_variant, created_at]
+      description: |
+        Day3 or day7 lapse re-entry nudge.
+        nudge_type is always "re_entry" for momentum nudges.
+      properties:
+        nudge_id:
+          type: string
+          description: Stable unique identifier for this nudge instance
+        nudge_type:
+          type: string
+          enum: [re_entry]
+          description: Always "re_entry" for momentum nudges
+        member_id:
+          type: string
+        message:
+          type: string
+          description: Primary message shown to the member (tone varies by lapse type)
+        deep_link:
+          $ref: "#/components/schemas/DeepLink"
+        expires_at:
+          type: string
+          format: date-time
+          description: 48 hours from creation — after this the nudge must not be shown
+        dismissible:
+          type: boolean
+          description: Always true (Decision D1)
+          example: true
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+          description: |
+            A/B test variant:
+            - day3 nudge uses eve_day3_nudge_v1 experiment
+            - day7 nudge uses eve_day7_nudge_v1 experiment
+        created_at:
+          type: string
+          format: date-time
+
+    CoachingCardResponse:
+      type: object
+      required: [stuck]
+      description: |
+        When stuck is true, the card field contains a CoachingCard.
+        When stuck is false, no card data is returned.
+      properties:
+        stuck:
+          type: boolean
+          description: True when member has been on same lesson for 7+ days
+        card:
+          description: Present only when stuck is true
+          $ref: "#/components/schemas/CoachingCard"
+
+    # ─── Sprint 6: Braze Integration ──────────────────────────────────────────
+    BrazeUser:
+      type: object
+      required: [external_id]
+      description: |
+        Braze user identity and attribute payload.
+        Maps to the Braze /users/track API format.
+        external_id is the stable Mindvalley member_id used as the Braze alias.
+      properties:
+        external_id:
+          type: string
+          description: Stable external identifier — Mindvalley member_id
+          example: "member_001"
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: Member email address
+        phone:
+          type: string
+          nullable: true
+          description: Member phone number (E.164 format)
+          example: "+12125551234"
+        timezone:
+          type: string
+          nullable: true
+          description: Member's IANA timezone
+          example: "America/New_York"
+        attributes:
+          type: object
+          nullable: true
+          description: Braze custom attributes (engagement signals for personalisation)
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+              - type: "null"
+
+    BrazePushPayload:
+      type: object
+      required: [campaign_id, recipient, message, ab_variant, timestamp]
+      description: |
+        Push notification payload sent to the Braze /messages/send API.
+        Includes campaign targeting, recipient identity, message body, and A/B variant.
+      properties:
+        campaign_id:
+          type: string
+          description: Braze campaign ID for this push notification type
+          example: "braze_campaign_streak_save_v1"
+        recipient:
+          $ref: "#/components/schemas/BrazeUser"
+        message:
+          type: string
+          description: Push notification message body (personalised)
+        deep_link:
+          type: string
+          nullable: true
+          description: Optional deep-link URL for the push notification CTA
+          example: "eve://lessons/l001?member=member_001&source=re_entry"
+        ab_variant:
+          type: string
+          enum: [treatment, control]
+          description: A/B test variant (from eve_push_nudge_v1 experiment)
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp when this push was constructed
+
+    BrazeApiResponse:
+      type: object
+      required: [success]
+      description: |
+        Response returned by the (mocked) Braze API after a send attempt.
+        Maps to the Braze /messages/send HTTP response body in production.
+      properties:
+        success:
+          type: boolean
+          description: Whether the API accepted the request
+        message_id:
+          type: string
+          nullable: true
+          description: Braze-assigned message ID (present on success)
+          example: "braze_msg_1a2b3c"
+        error:
+          type: string
+          nullable: true
+          description: Error description (present on failure)
+
+    BrazeSegmentExport:
+      type: object
+      required: [segment_id, members]
+      description: |
+        A Braze segment with its exported member list.
+        Used to target cohorts of members with specific nudge campaigns.
+      properties:
+        segment_id:
+          type: string
+          description: Braze segment identifier
+          example: "segment_at_risk_members"
+        members:
+          type: array
+          description: Members belonging to this segment (BrazeUser format)
+          items:
+            $ref: "#/components/schemas/BrazeUser"
+
+    FatigueGuardState:
+      type: object
+      required: [member_id, last_nudge_at, nudge_count_24h]
+      description: |
+        Per-member fatigue guard state.
+        Tracks when the last nudge was sent and the count within the current 24h window.
+        Used to enforce the "1 nudge per member per 24h" rule.
+      properties:
+        member_id:
+          type: string
+          description: Mindvalley member ID
+        last_nudge_at:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp of the most recent nudge sent to this member
+        nudge_count_24h:
+          type: integer
+          minimum: 0
+          description: Count of nudges sent in the last 24h
+
+    PushChannel:
+      type: string
+      enum: [push, in_app, fallback, blocked]
+      description: |
+        The delivery channel used for a push notification:
+        - push:     Delivered successfully via Braze push
+        - in_app:   Delivered as in-app only (control variant or no push token)
+        - fallback: Braze was unavailable — in-app only as fallback
+        - blocked:  Fatigue guard blocked this nudge (1 per 24h already sent)
+
+    PushNotificationResult:
+      type: object
+      required: [delivered, channel, nudge_event]
+      description: |
+        The result of a full push delivery attempt for a single member.
+        Includes the delivery outcome, channel used, the original nudge event,
+        and optionally the Braze API response.
+      properties:
+        delivered:
+          type: boolean
+          description: Whether the nudge was delivered via any channel
+        channel:
+          $ref: "#/components/schemas/PushChannel"
+        nudge_event:
+          $ref: "#/components/schemas/MomentumNudge"
+          description: The nudge event that triggered this delivery
+        braze_response:
+          nullable: true
+          description: Braze API response (present if Braze was attempted)
+          oneOf:
+            - $ref: "#/components/schemas/BrazeApiResponse"
+            - type: "null"
+
+    SendNudgeRequest:
+      type: object
+      required: [nudge_type]
+      description: Request body for POST /members/:member_id/send-nudge
+      properties:
+        nudge_type:
+          type: string
+          enum: [streak_save, day3, day7, coaching]
+          description: |
+            Type of nudge to send:
+            - streak_save: streak-save nudge (protect active streak)
+            - day3:        3-day lapse re-entry nudge
+            - day7:        7-day lapse re-entry nudge
+            - coaching:    coaching re-entry variant (uses day7 strength)
+
+    # ─── Sprint 7: Recommendations ────────────────────────────────────────────
+
+    QuestCompleteRequest:
+      type: object
+      required: [quest_id]
+      description: Request body for POST /members/:member_id/quest-complete
+      properties:
+        quest_id:
+          type: string
+          description: The quest that was completed (or nearly completed)
+          example: "hb_q001"
+        completion_percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+          default: 100
+          description: Completion percentage at event time (0–100). Defaults to 100.
+          example: 100
+
+    QuestCompletionEvent:
+      type: object
+      required: [member_id, quest_id, completed_at, completion_percentage]
+      description: Real-time event fired when a quest is completed (or >= 80% reached)
+      properties:
+        member_id:
+          type: string
+          example: "sofia_demo"
+        quest_id:
+          type: string
+          example: "hb_q001"
+        completed_at:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp when the event was generated
+          example: "2026-04-10T09:00:00.000Z"
+        completion_percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Completion percentage at the moment the event fired
+          example: 100
+
+    NextChapterRecommendation:
+      type: object
+      required: [quest_id, title, category, relevance_score, reason]
+      description: A single next-chapter quest recommendation
+      properties:
+        quest_id:
+          type: string
+          example: "hb_q003"
+        title:
+          type: string
+          example: "Morning Ritual Mastery"
+        category:
+          type: string
+          example: "habit_builder"
+        relevance_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Relevance score 0.0–1.0 (higher = more relevant)
+          example: 0.9
+        reason:
+          type: string
+          description: Human-readable explanation of why this quest was recommended
+          example: "Matches your habit builder goal — Design a morning routine that primes your mind and body."
+
+    RecommendationResponse:
+      type: object
+      required: [member_id, recommendations, generated_at, is_fallback]
+      description: Response shape for next-chapter recommendation endpoints
+      properties:
+        member_id:
+          type: string
+          example: "sofia_demo"
+        recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/NextChapterRecommendation"
+          minItems: 0
+          maxItems: 5
+          description: 3–5 recommended next quests (goal-anchored, excluding completed ones)
+        generated_at:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp when recommendations were generated
+          example: "2026-04-10T09:00:00.000Z"
+        is_fallback:
+          type: boolean
+          description: True when the intent-based fallback was used instead of the goal-anchored engine
+
+    QuestCompleteResponse:
+      type: object
+      required: [event, member_id, recommendations, generated_at, is_fallback]
+      description: Response for POST /members/:member_id/quest-complete — event + recommendations
+      properties:
+        event:
+          $ref: "#/components/schemas/QuestCompletionEvent"
+        member_id:
+          type: string
+          example: "sofia_demo"
+        recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/NextChapterRecommendation"
+          description: Next-chapter recommendations (may be empty for unknown members)
+        generated_at:
+          type: string
+          format: date-time
+          example: "2026-04-10T09:00:00.000Z"
+        is_fallback:
+          type: boolean
+
+    AlmostThereResponse:
+      type: object
+      required: [eligible]
+      description: |
+        Response for GET /members/:member_id/almost-there.
+        Returns `eligible: true` with a message when completion_pct >= 80;
+        `eligible: false` otherwise.
+      properties:
+        eligible:
+          type: boolean
+          description: Whether the "almost there" prompt fires
+        message:
+          type: string
+          description: Personalised prompt message (only present when eligible is true)
+          example: "You're almost there! 82% done with \"Morning Ritual Mastery\" on your habit builder journey. Only 18% to go — keep the momentum going!"
+        completion_percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Rounded completion percentage (only present when eligible is true)
+          example: 82
