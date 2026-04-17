@@ -69,9 +69,19 @@ function pickLessonSpecificPrompt(
     context.lesson_meta.topic
   );
 
+  const rawDisplay = template.display_text ?? template.text;
+  const display_text = personalisePromptText(
+    { ...template, text: rawDisplay },
+    context.primary_goal,
+    context.current_quest_title,
+    context.lesson_meta.title,
+    context.lesson_meta.topic
+  );
+
   return {
     prompt_id: template.prompt_id,
     category: template.category,
+    display_text,
     text,
     ranking_score: parseFloat(template.base_weight.toFixed(4)),
     reason: `lesson-specific — anchored to "${context.lesson_meta.title}"`,
@@ -111,9 +121,19 @@ function pickGoalAnchoredPrompt(
     lessonTopic
   );
 
+  const rawDisplay = template.display_text ?? template.text;
+  const display_text = personalisePromptText(
+    { ...template, text: rawDisplay },
+    context.primary_goal,
+    context.current_quest_title,
+    lessonTitle,
+    lessonTopic
+  );
+
   return {
     prompt_id: template.prompt_id,
     category: template.category,
+    display_text,
     text,
     ranking_score: parseFloat(template.base_weight.toFixed(4)),
     reason: `goal-anchored — connects lesson to "${context.primary_goal}" goal`,
@@ -217,6 +237,7 @@ export function getLearningFallbackPrompts(count: number = PROMPT_COUNT_MAX): Le
   return LEARNING_FALLBACK_PROMPTS.slice(0, clampedCount).map((template, idx) => ({
     prompt_id: template.prompt_id,
     category: template.category,
+    display_text: template.display_text ?? template.text,
     text: template.text,
     ranking_score: parseFloat((1.0 - idx * 0.1).toFixed(4)),
     reason: "static learning fallback (profile or lesson unavailable)",

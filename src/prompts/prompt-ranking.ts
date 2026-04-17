@@ -236,13 +236,23 @@ export function rankPromptsForProfile(
   selected.sort((a, b) => b.score - a.score);
 
   // 4. Personalise and build RankedPrompt output
-  return selected.map(({ template, score }) => ({
-    prompt_id: template.prompt_id,
-    category: template.category,
-    text: personalisePromptText(template, primaryGoal, currentQuestTitle),
-    ranking_score: score,
-    reason: buildReason(template, profile, state),
-  }));
+  return selected.map(({ template, score }) => {
+    const personalisedText = personalisePromptText(template, primaryGoal, currentQuestTitle);
+    const rawDisplay = template.display_text ?? template.text;
+    const personalisedDisplay = personalisePromptText(
+      { ...template, text: rawDisplay },
+      primaryGoal,
+      currentQuestTitle
+    );
+    return {
+      prompt_id: template.prompt_id,
+      category: template.category,
+      display_text: personalisedDisplay,
+      text: personalisedText,
+      ranking_score: score,
+      reason: buildReason(template, profile, state),
+    };
+  });
 }
 
 // ─── Fallback Ranking ─────────────────────────────────────────────────────────
@@ -259,6 +269,7 @@ export function getFallbackPrompts(count: number = PROMPT_COUNT_MAX): RankedProm
   return FALLBACK_PROMPTS.slice(0, clampedCount).map((template, idx) => ({
     prompt_id: template.prompt_id,
     category: template.category,
+    display_text: template.display_text ?? template.text,
     text: template.text,
     ranking_score: parseFloat((1.0 - idx * 0.1).toFixed(4)),
     reason: "static fallback prompt (profile unavailable)",

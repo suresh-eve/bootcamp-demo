@@ -30,7 +30,12 @@ export interface PromptTemplate {
   prompt_id: string;
   /** Prompt category */
   category: PromptCategory;
-  /** The text shown to the member in Eve chat */
+  /**
+   * Short teaser label (4–8 words) shown on the prompt chip.
+   * If absent, falls back to the first 6 words of `text`.
+   */
+  display_text?: string;
+  /** The full message sent to Eve when the member clicks the prompt */
   text: string;
   /**
    * Target member states this prompt is designed for (1–4).
@@ -56,6 +61,9 @@ export interface PromptTemplate {
 export interface RankedPrompt {
   prompt_id: string;
   category: PromptCategory;
+  /** Short chip label shown to the member (the "teaser") */
+  display_text: string;
+  /** Full message sent to Eve when the member clicks the prompt */
   text: string;
   /** Final ranking score (0.0–1.0) used to order prompts */
   ranking_score: number;

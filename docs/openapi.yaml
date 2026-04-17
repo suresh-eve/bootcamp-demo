@@ -49,6 +49,8 @@ tags:
     description: Braze push integration, fatigue guard, and segment export (Sprint 6)
   - name: recommendations
     description: Predictive Path Continuity — quest completion detection and next-chapter recommendations (Sprint 7)
+  - name: milestone-flow
+    description: Next Chapter Flow, Goal Milestone identity reflection, and Silence Nudge re-entry (Sprint 8)
   - name: health
     description: Service health checks
 
@@ -2286,3 +2288,265 @@ components:
           maximum: 100
           description: Rounded completion percentage (only present when eligible is true)
           example: 82
+
+  /members/{member_id}/new-chapter-flow:
+    get:
+      tags:
+        - milestone-flow
+      operationId: getNewChapterFlow
+      summary: Get full New Chapter landing flow
+      description: |
+        Orchestrates the full post-quest-completion experience in a single API call:
+        - 3 next-chapter quest recommendations (< 2s SLA)
+        - Eve proactive message ("Great job finishing…")
+        - Optional goal milestone reflection if the member just hit 3/6/9 completions
+          in the same category
+
+        **Milestone trigger:** Fires at exactly 3, 6, or 9 completions in the same
+        category. Level 1 = 3 quests, Level 2 = 6 quests, Level 3 = 9 quests.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          description: Unique member identifier
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+        - name: completed_quest_id
+          in: query
+          required: true
+          description: The quest that was just completed
+          schema:
+            type: string
+      responses:
+        "200":
+          description: New Chapter Flow generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewChapterFlow"
+        "400":
+          description: Invalid member_id or missing completed_quest_id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/milestone-check:
+    post:
+      tags:
+        - milestone-flow
+      operationId: checkMilestone
+      summary: Check and return a goal milestone if triggered
+      description: |
+        Given a list of completed quest IDs, checks whether the member has hit a
+        goal milestone (3, 6, or 9 completions in the same category).
+
+        Returns the GoalMilestone object when triggered, or `milestone: null` when
+        no threshold has been reached.
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [completed_quest_ids]
+              properties:
+                completed_quest_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: Full list of quest IDs the member has completed
+                  example: ["hb_q001", "hb_q002", "hb_q003"]
+      responses:
+        "200":
+          description: Milestone check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MilestoneCheckResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{member_id}/silence-nudge:
+    get:
+      tags:
+        - milestone-flow
+      operationId: getSilenceNudge
+      summary: Get silence re-entry nudge for inactive members
+      description: |
+        Returns a SilenceNudge when the member has been inactive for 5 or more days.
+        Returns `nudge: null` when the member has been active within the last 4 days.
+
+        **Delivery:**
+        - treatment: Braze push notification is triggered
+        - control: in-app nudge only
+
+        **A/B experiment:** `eve_silence_nudge_v1`
+      parameters:
+        - name: member_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[\\w-]{1,64}$"
+      responses:
+        "200":
+          description: Silence nudge result (nudge is null when not eligible)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SilenceNudgeResponse"
+        "400":
+          description: Invalid member_id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Sprint 8 Schemas (appended to components/schemas) ───────────────────────
+
+# NOTE: The following schemas are appended at document root level for brevity.
+# In production these should be merged into the components/schemas section above.
+
+x-sprint-8-schemas:
+  GoalMilestone:
+    type: object
+    required: [member_id, category, quests_completed, milestone_level, triggered_at, ab_variant]
+    properties:
+      member_id:
+        type: string
+      category:
+        type: string
+        example: "habit_builder"
+      quests_completed:
+        type: integer
+        enum: [3, 6, 9]
+      milestone_level:
+        type: integer
+        enum: [1, 2, 3]
+      triggered_at:
+        type: string
+        format: date-time
+      ab_variant:
+        type: string
+        enum: [treatment, control]
+
+  MilestoneReflection:
+    type: object
+    required: [milestone, prompt_text, eve_context, dismissible]
+    properties:
+      milestone:
+        $ref: "#/x-sprint-8-schemas/GoalMilestone"
+      prompt_text:
+        type: string
+        example: "You've completed 3 habit builder quests — you're becoming a habit architect. How has this journey changed how you see yourself?"
+      eve_context:
+        type: string
+      dismissible:
+        type: boolean
+
+  NewChapterFlow:
+    type: object
+    required: [member_id, completed_quest, recommendations, eve_proactive_message, is_milestone, generated_at]
+    properties:
+      member_id:
+        type: string
+      completed_quest:
+        type: object
+        required: [quest_id, title, category]
+        properties:
+          quest_id:
+            type: string
+          title:
+            type: string
+          category:
+            type: string
+      recommendations:
+        type: array
+        items:
+          $ref: "#/components/schemas/NextChapterRecommendation"
+        maxItems: 5
+      eve_proactive_message:
+        type: string
+      is_milestone:
+        type: boolean
+      milestone:
+        $ref: "#/x-sprint-8-schemas/MilestoneReflection"
+        nullable: true
+      generated_at:
+        type: string
+        format: date-time
+
+  MilestoneCheckResponse:
+    type: object
+    required: [milestone]
+    properties:
+      milestone:
+        oneOf:
+          - $ref: "#/x-sprint-8-schemas/GoalMilestone"
+          - type: "null"
+
+  SilenceNudge:
+    type: object
+    required: [member_id, days_silent, channel, in_app_fallback, ab_variant, created_at]
+    properties:
+      member_id:
+        type: string
+      days_silent:
+        type: integer
+        minimum: 5
+      channel:
+        type: string
+        enum: [push, in_app, fallback]
+      braze_payload:
+        $ref: "#/components/schemas/BrazePushPayload"
+        nullable: true
+      in_app_fallback:
+        type: string
+      ab_variant:
+        type: string
+        enum: [treatment, control]
+      created_at:
+        type: string
+        format: date-time
+
+  SilenceNudgeResponse:
+    type: object
+    required: [nudge, delivered]
+    properties:
+      nudge:
+        oneOf:
+          - $ref: "#/x-sprint-8-schemas/SilenceNudge"
+          - type: "null"
+      delivered:
+        type: boolean

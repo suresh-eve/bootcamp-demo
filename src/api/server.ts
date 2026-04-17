@@ -8,6 +8,7 @@
  * Sprint 5 deliverable: adds Momentum Nudge (day3/day7 lapse) and Coaching Card endpoints.
  * Sprint 6 deliverable: adds Send Nudge (Braze push + fatigue guard) endpoint.
  * Sprint 7 deliverable: adds Quest Completion, Almost There, and Next Chapter endpoints.
+ * Sprint 8 deliverable: adds New Chapter Flow, Milestone Check, and Silence Nudge endpoints.
  *
  * Routes:
  *   GET /health                                        — health check
@@ -23,6 +24,9 @@
  *   POST /members/:member_id/quest-complete            — record quest completion + next-chapter recs (Sprint 7)
  *   GET /members/:member_id/almost-there               — "almost there" prompt when member is 80%+ (Sprint 7)
  *   GET /members/:member_id/next-chapter               — 3–5 next-chapter recommendations (Sprint 7)
+ *   GET /members/:member_id/new-chapter-flow           — full New Chapter landing flow (Sprint 8)
+ *   POST /members/:member_id/milestone-check           — check and return milestone if triggered (Sprint 8)
+ *   GET /members/:member_id/silence-nudge              — silence re-entry nudge if 5+ days inactive (Sprint 8)
  *
  * Design decisions:
  * - Single-file Express server wired to LearnerProfileService via DataAdapter
@@ -36,6 +40,7 @@
  */
 
 import express, { Request, Response, NextFunction } from "express";
+import path from "path";
 import { createDataAdapter } from "../config/adapter-config";
 import { LearnerProfileService } from "../services/learner-profile";
 import { rankPrompts } from "../prompts/prompt-ranking";
@@ -94,6 +99,12 @@ import {
   buildIntentFallback,
 } from "../services/recommendation-engine";
 import type { RecommendationResponse } from "../types/recommendations";
+import {
+  orchestrateNewChapterFlow,
+  checkSilenceAndNudge,
+} from "../services/new-chapter-flow";
+import { checkMilestone } from "../services/milestone-tracker";
+import type { NewChapterFlow, SilenceNudge } from "../types/milestone";
 
 // ─── Response shapes ──────────────────────────────────────────────────────────
 
@@ -138,6 +149,11 @@ export function createApp(): express.Application {
   // Wire up the service (adapter factory reads DATA_ADAPTER env var)
   const adapter = createDataAdapter();
   const service = new LearnerProfileService(adapter);
+
+  // ── GET / (dashboard UI) ──────────────────────────────────────────────────
+  app.get("/", (_req: Request, res: Response) => {
+    res.sendFile(path.join(__dirname, "dashboard.html"));
+  });
 
   // ── GET /health ────────────────────────────────────────────────────────────
   app.get("/health", async (_req: Request, res: Response) => {
@@ -1073,6 +1089,187 @@ export function createApp(): express.Application {
 
       const response = getNextChapterRecommendations(rawMember, completedQuestIds);
       res.status(200).json(response);
+    }
+  );
+
+  // ── GET /members/:member_id/new-chapter-flow ───────────────────────────────
+  //    Query params: completed_quest_id (required)
+  //    Orchestrates the full New Chapter landing: recommendations + Eve message +
+  //    optional milestone reflection.
+  app.get(
+    "/members/:member_id/new-chapter-flow",
+    async (req: Request, res: Response) => {
+      const requestId = generateRequestId();
+      const { member_id } = req.params;
+
+      // Validate member_id
+      if (!/^[\w-]{1,64}$/.test(member_id)) {
+        const body: ErrorResponse = {
+          error: {
+            code: "INVALID_MEMBER_ID",
+            message: `member_id must be 1–64 alphanumeric/hyphen/underscore characters`,
+            request_id: requestId,
+          },
+        };
+        res.status(400).json(body);
+        return;
+      }
+
+      // Extract required completed_quest_id query param
+      const rawCompletedQuestId =
+        typeof req.query["completed_quest_id"] === "string"
+          ? req.query["completed_quest_id"].trim()
+          : null;
+
+      if (!rawCompletedQuestId || rawCompletedQuestId.length === 0) {
+        const errBody: ErrorResponse = {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "Query parameter completed_quest_id is required",
+            request_id: requestId,
+          },
+        };
+        res.status(400).json(errBody);
+        return;
+      }
+
+      // Look up raw member data
+      const rawMember = getMockMemberById(member_id);
+
+      if (!rawMember) {
+        const errBody: ErrorResponse = {
+          error: {
+            code: "MEMBER_NOT_FOUND",
+            message: `No data found for member_id: ${member_id}`,
+            request_id: requestId,
+          },
+        };
+        res.status(404).json(errBody);
+        return;
+      }
+
+      // Derive all completed quest IDs (including the newly completed one)
+      const completedQuestIds = rawMember.learning.quests
+        .filter((q) => q.completed_at !== null || q.quest_id === rawCompletedQuestId)
+        .map((q) => q.quest_id);
+      if (!completedQuestIds.includes(rawCompletedQuestId)) {
+        completedQuestIds.push(rawCompletedQuestId);
+      }
+
+      // Orchestrate the full flow
+      const flow: NewChapterFlow = orchestrateNewChapterFlow(
+        rawMember,
+        rawCompletedQuestId,
+        completedQuestIds
+      );
+
+      res.status(200).json(flow);
+    }
+  );
+
+  // ── POST /members/:member_id/milestone-check ────────────────────────────────
+  //    Body: { completed_quest_ids: string[] }
+  //    Checks whether the given set of completions triggers a goal milestone.
+  //    Returns the milestone if triggered, or null.
+  app.post(
+    "/members/:member_id/milestone-check",
+    async (req: Request, res: Response) => {
+      const requestId = generateRequestId();
+      const { member_id } = req.params;
+
+      // Validate member_id
+      if (!/^[\w-]{1,64}$/.test(member_id)) {
+        const body: ErrorResponse = {
+          error: {
+            code: "INVALID_MEMBER_ID",
+            message: `member_id must be 1–64 alphanumeric/hyphen/underscore characters`,
+            request_id: requestId,
+          },
+        };
+        res.status(400).json(body);
+        return;
+      }
+
+      // Parse and validate request body
+      const reqBody = req.body as Partial<{ completed_quest_ids: unknown }>;
+      if (
+        !reqBody ||
+        !Array.isArray(reqBody.completed_quest_ids) ||
+        !reqBody.completed_quest_ids.every((id) => typeof id === "string")
+      ) {
+        const errBody: ErrorResponse = {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "Request body must include completed_quest_ids: string[]",
+            request_id: requestId,
+          },
+        };
+        res.status(400).json(errBody);
+        return;
+      }
+
+      const completedQuestIds = reqBody.completed_quest_ids as string[];
+
+      // Look up raw member data
+      const rawMember = getMockMemberById(member_id);
+
+      if (!rawMember) {
+        const errBody: ErrorResponse = {
+          error: {
+            code: "MEMBER_NOT_FOUND",
+            message: `No data found for member_id: ${member_id}`,
+            request_id: requestId,
+          },
+        };
+        res.status(404).json(errBody);
+        return;
+      }
+
+      const milestone = checkMilestone(rawMember, completedQuestIds);
+
+      res.status(200).json({ milestone });
+    }
+  );
+
+  // ── GET /members/:member_id/silence-nudge ────────────────────────────────────
+  //    Returns a SilenceNudge if the member has been inactive 5+ days; null otherwise.
+  app.get(
+    "/members/:member_id/silence-nudge",
+    async (req: Request, res: Response) => {
+      const requestId = generateRequestId();
+      const { member_id } = req.params;
+
+      // Validate member_id
+      if (!/^[\w-]{1,64}$/.test(member_id)) {
+        const body: ErrorResponse = {
+          error: {
+            code: "INVALID_MEMBER_ID",
+            message: `member_id must be 1–64 alphanumeric/hyphen/underscore characters`,
+            request_id: requestId,
+          },
+        };
+        res.status(400).json(body);
+        return;
+      }
+
+      // Look up raw member data
+      const rawMember = getMockMemberById(member_id);
+
+      if (!rawMember) {
+        const errBody: ErrorResponse = {
+          error: {
+            code: "MEMBER_NOT_FOUND",
+            message: `No data found for member_id: ${member_id}`,
+            request_id: requestId,
+          },
+        };
+        res.status(404).json(errBody);
+        return;
+      }
+
+      const { nudge, delivered } = await checkSilenceAndNudge(rawMember);
+
+      res.status(200).json({ nudge, delivered });
     }
   );
 
