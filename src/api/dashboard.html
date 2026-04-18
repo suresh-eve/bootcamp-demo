@@ -532,6 +532,72 @@
     .cat-performance { color: var(--yellow); }
     .cat-mindfulness { color: var(--cyan); }
 
+    /* ── PICKER FILTERS ────────────────────────────────────────────────────── */
+    .picker-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .picker-search {
+      background: var(--card);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 5px 10px 5px 28px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-family: inherit;
+      width: 180px;
+      transition: border-color 0.15s;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%236b6b9a' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 9px center;
+    }
+    .picker-search:focus { outline: none; border-color: var(--violet); }
+    .picker-search::placeholder { color: var(--muted); }
+    .picker-filter-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+    .filter-sep { width: 1px; height: 16px; background: var(--border2); margin: 0 3px; flex-shrink: 0; }
+    .filter-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+    .filter-chip {
+      padding: 3px 9px;
+      border-radius: 20px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--muted2);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .filter-chip:hover { border-color: var(--violet2); color: var(--violet2); }
+    .filter-chip.active { background: rgba(124,92,252,0.15); border-color: var(--violet); color: var(--violet2); }
+    .filter-chip.s1.active { background: rgba(52,211,153,0.12); border-color: var(--green); color: var(--green); }
+    .filter-chip.s2.active { background: rgba(251,191,36,0.12); border-color: var(--yellow); color: var(--yellow); }
+    .filter-chip.s3.active { background: rgba(34,211,238,0.12); border-color: var(--cyan); color: var(--cyan); }
+    .filter-chip.s4.active { background: rgba(248,113,113,0.12); border-color: var(--red); color: var(--red); }
+    .picker-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .picker-count { font-size: 10px; color: var(--muted); font-weight: 500; }
+    .member-cards {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      max-height: 192px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .member-cards::-webkit-scrollbar { width: 4px; }
+    .member-cards::-webkit-scrollbar-track { background: transparent; }
+    .member-cards::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
     @media (max-width: 900px) {
       .hero { grid-template-columns: repeat(3, 1fr); }
       .grid-3 { grid-template-columns: 1fr; }
@@ -568,10 +634,26 @@
 
 <!-- MEMBER PICKER -->
 <div class="picker-bar">
-  <div class="picker-label">Select a test member to explore</div>
-  <div class="member-cards" id="memberCards">
-    <!-- rendered by JS -->
+  <div class="picker-controls">
+    <input class="picker-search" id="pickerSearch" type="search" placeholder="Search members…" oninput="applyPickerFilters()" />
+    <div class="picker-filter-row">
+      <span class="filter-label">Category</span>
+      <button class="filter-chip active" id="fcat-all" onclick="setPickerFilter('category','all')">All</button>
+      <button class="filter-chip" id="fcat-spiritual" onclick="setPickerFilter('category','spiritual')">🧘 Spiritual</button>
+      <button class="filter-chip" id="fcat-health" onclick="setPickerFilter('category','health')">💪 Health</button>
+      <button class="filter-chip" id="fcat-business" onclick="setPickerFilter('category','business')">💼 Business</button>
+      <button class="filter-chip" id="fcat-personal" onclick="setPickerFilter('category','personal')">🌱 Personal</button>
+      <div class="filter-sep"></div>
+      <span class="filter-label">State</span>
+      <button class="filter-chip active" id="fstate-all" onclick="setPickerFilter('state','all')">All</button>
+      <button class="filter-chip s1" id="fstate-1" onclick="setPickerFilter('state','1')">S1 🚀</button>
+      <button class="filter-chip s2" id="fstate-2" onclick="setPickerFilter('state','2')">S2 🌟</button>
+      <button class="filter-chip s3" id="fstate-3" onclick="setPickerFilter('state','3')">S3 🏃</button>
+      <button class="filter-chip s4" id="fstate-4" onclick="setPickerFilter('state','4')">S4 ⚡</button>
+    </div>
+    <div class="picker-count" id="pickerCount"></div>
   </div>
+  <div class="member-cards" id="memberCards"><!-- rendered by JS --></div>
 </div>
 
 <!-- HERO STATS -->
@@ -824,36 +906,95 @@
   // ── Constants ─────────────────────────────────────────────────────────────
 
   const PERSONAS = {
-    'member_001': {
-      name: 'Maya',
-      flag: '🇸🇬',
-      role: 'Wellness Coach',
-      backstory: 'Deepening her spiritual practice alongside her professional wellness work. Shows up every day with intention.',
-    },
-    'member_050': {
-      name: 'James',
-      flag: '🇦🇺',
-      role: 'Tech Lead',
-      backstory: 'Exploring mindfulness and inner development between demanding engineering sprints. High ambition, active learner.',
-    },
-    'member_100': {
-      name: 'Priya',
-      flag: '🇮🇳',
-      role: 'Product Manager',
-      backstory: 'Building mental clarity and focus to perform at her best in a fast-paced product role. Analytical and goal-driven.',
-    },
-    'member_200': {
-      name: 'Carlos',
-      flag: '🇲🇽',
-      role: 'Fitness Trainer',
-      backstory: 'Expanding beyond the physical — recently set a relationships goal. Newer to the platform and drifting.',
-    },
-    'member_300': {
-      name: 'Sofia',
-      flag: '🇩🇪',
-      role: 'Creative Director',
-      backstory: 'Exploring inner work to unlock deeper creative expression and authentic leadership. Values depth over pace.',
-    },
+    // ── Demo members (live API data) ────────────────────────────────────────
+    'member_001': { name: 'Maya',   flag: '🇸🇬', role: 'Wellness Coach',     category: 'spiritual', s: 1,
+      backstory: 'Deepening her spiritual practice alongside her professional wellness work. Shows up every day with intention.' },
+    'member_050': { name: 'James',  flag: '🇦🇺', role: 'Tech Lead',          category: 'personal',  s: 1,
+      backstory: 'Exploring mindfulness and inner development between demanding engineering sprints. High ambition, active learner.' },
+    'member_100': { name: 'Priya',  flag: '🇮🇳', role: 'Product Manager',    category: 'business',  s: 1,
+      backstory: 'Building mental clarity and focus to perform at her best in a fast-paced product role. Analytical and goal-driven.' },
+    'member_200': { name: 'Carlos', flag: '🇲🇽', role: 'Fitness Trainer',    category: 'health',    s: 3,
+      backstory: 'Expanding beyond the physical — recently set a relationships goal. Newer to the platform and drifting.' },
+    'member_300': { name: 'Sofia',  flag: '🇩🇪', role: 'Creative Director',  category: 'spiritual',  s: 2,
+      backstory: 'Exploring inner work to unlock deeper creative expression and authentic leadership. Values depth over pace.' },
+
+    // ── Research members (50-member user interview study — API uses mapped demo member) ─
+    'research_001': { name: 'Adriana Vasilache',       flag: '🇷🇴', role: 'Wellbeing Educator',          category: 'spiritual', s: 1, apiId: 'member_001',
+      backstory: 'Ten-year Mindvalley veteran who weaves consciousness practices into her wellbeing education work. Shows up daily with deep intentionality.' },
+    'research_002': { name: 'Al Forgione',             flag: '🇺🇸', role: 'Business Professional',       category: 'personal',  s: 1, apiId: 'member_001',
+      backstory: 'Joined during the pandemic and never stopped. Mindvalley gave him the mental edge in both career and personal life. Consistent daily learner.' },
+    'research_003': { name: 'Alexandra Davis',         flag: '🇺🇸', role: 'Entrepreneur',                category: 'personal',  s: 1, apiId: 'member_001',
+      backstory: 'Relatively new but intensely engaged. Used Mindvalley to reframe her approach to building her business and her relationship with herself.' },
+    'research_004': { name: 'Amar Khanderia',          flag: '🇨🇦', role: 'Executive Coach',             category: 'business',  s: 1, apiId: 'member_001',
+      backstory: 'Brings Mindvalley\'s frameworks directly into his coaching practice. High intent, high output — learning is inseparable from his work.' },
+    'research_005': { name: 'Andrea Alberto',          flag: '🇺🇸', role: 'Wellness Practitioner',       category: 'spiritual', s: 1, apiId: 'member_001',
+      backstory: 'Uses Mindvalley to deepen her spiritual foundations and bring more consciousness to her daily practice. Consistent and quietly motivated.' },
+    'research_006': { name: 'Audrèenne Besner',        flag: '🇨🇦', role: 'Creative Entrepreneur',       category: 'personal',  s: 1, apiId: 'member_001',
+      backstory: 'High-momentum learner who connects deeply with personal transformation content. Actively applies what she learns in daily life.' },
+    'research_007': { name: 'Babs Troske',             flag: '🇺🇸', role: 'Professional in Transition',  category: 'personal',  s: 2, apiId: 'member_300',
+      backstory: 'Long-term member who has done a lot of learning but finds consistency hard to sustain through life changes. Strong intent, uneven rhythm.' },
+    'research_008': { name: 'Biruk Alemayehu',         flag: '🇬🇧', role: 'Tech Entrepreneur',           category: 'business',  s: 1, apiId: 'member_001',
+      backstory: 'Uses Mindvalley to sharpen his mindset for building in a competitive space. Disciplined learner who connects growth with business results.' },
+    'research_009': { name: 'Bogi Komaromi',           flag: '🇭🇺', role: 'Life Coach',                  category: 'business',  s: 4, apiId: 'member_200',
+      backstory: 'Experienced coach who onboarded to deepen her practice but has struggled to maintain a consistent rhythm. Drifting despite strong interest.' },
+    'research_010': { name: 'Brooke Damerel',          flag: '🇺🇸', role: 'Creative Director',           category: 'spiritual', s: 1, apiId: 'member_001',
+      backstory: 'Brought creativity and spiritual curiosity together through Mindvalley. High-engagement learner who uses inner work to fuel her design thinking.' },
+    'research_011': { name: 'Christian Belter',        flag: '🇩🇪', role: 'Business Leader',             category: 'business',  s: 1, apiId: 'member_001',
+      backstory: 'Six-year European member who rigorously applies Mindvalley\'s frameworks to leadership. Values measurable growth alongside inner transformation.' },
+    'research_012': { name: 'Cornelia Schmitz',        flag: '🇩🇪', role: 'Engineer',                    category: 'health',    s: 2, apiId: 'member_300',
+      backstory: 'Joined recently to address burnout and work stress. High motivation to change but still finding her learning rhythm on the platform.' },
+    'research_013': { name: 'Dana Linnet',             flag: '🇯🇵', role: 'Mindfulness Practitioner',    category: 'spiritual', s: 1, apiId: 'member_001',
+      backstory: 'Based in Japan, deeply connected to contemplative practices. Integrates Mindvalley\'s eastern-western blend seamlessly into her daily life.' },
+    'research_014': { name: 'Deb Sewall',              flag: '🇺🇸', role: 'Wellness Advocate',           category: 'health',    s: 1, apiId: 'member_001',
+      backstory: 'Passionate about holistic wellbeing. Uses Mindvalley to stay at the cutting edge of mind-body-spirit integration. Active and enthusiastic.' },
+    'research_015': { name: 'Dena Zavier',             flag: '🇨🇦', role: 'Retired Nurse',               category: 'health',    s: 2, apiId: 'member_300',
+      backstory: 'Came to Mindvalley through the Silva Method. Strong intent around health and healing but has lost her daily learning rhythm in retirement.' },
+    'research_016': { name: 'Eric Mueller',            flag: '🇺🇸', role: 'Professional',                category: 'personal',  s: 4, apiId: 'member_200',
+      backstory: 'Enrolled with high hopes but has drifted. Low activity and unclear direction. Needs a re-entry nudge and clearer goal anchoring from Eve.' },
+    'research_017': { name: 'Hubert Raper',            flag: '🇺🇸', role: 'Manager',                     category: 'personal',  s: 4, apiId: 'member_200',
+      backstory: 'Five-year veteran who has gone quiet. Once engaged deeply but life pressures have pushed Mindvalley to the back burner.' },
+    'research_018': { name: 'Janet Blair',             flag: '🇦🇺', role: 'Transformational Coach',      category: 'spiritual', s: 3, apiId: 'member_200',
+      backstory: '20+ year spiritual practitioner who has explored many modalities. Browses Mindvalley broadly but hasn\'t declared a clear next focus yet.' },
+    'research_019': { name: 'Joey Simsen',             flag: '🇳🇱', role: 'Health Coach',                category: 'business',  s: 1, apiId: 'member_001',
+      backstory: 'Dutch health coach who uses Mindvalley\'s content to inform his client work. Deep learner with strong momentum and clear professional application.' },
+    'research_020': { name: 'Jojo Hulett',             flag: '🇺🇸', role: 'Tech-Forward Professional',   category: 'personal',  s: 1, apiId: 'member_001',
+      backstory: 'Early adopter of Eve\'s AI features. Highly engaged — uses tech and mindset content together to stay ahead in a fast-changing world.' },
+    'research_021': { name: 'Karen Weitz',             flag: '🇺🇸', role: 'Therapist',                   category: 'health',    s: 2, apiId: 'member_300',
+      backstory: 'Mental health professional who brings Mindvalley\'s tools into her practice and personal life. Strong intent but inconsistent learning rhythm.' },
+    'research_022': { name: 'Karen Wertman',           flag: '🇺🇸', role: 'Spiritual Seeker',            category: 'spiritual', s: 2, apiId: 'member_300',
+      backstory: 'Deep interest in consciousness and spiritual growth. Explores Mindvalley broadly but hasn\'t yet built a consistent daily practice.' },
+    'research_023': { name: 'Katharina Bauer',         flag: '🇩🇪', role: 'Crisis Management Consultant', category: 'business', s: 4, apiId: 'member_200',
+      backstory: 'High-performing consultant who joined to manage stress and build resilience but has become inactive. Needs a targeted re-engagement spark.' },
+    'research_024': { name: 'Kim Sleno',               flag: '🇨🇦', role: 'Executive Coach',             category: 'business',  s: 1, apiId: 'member_001',
+      backstory: 'Sixteen-year member who integrates Mindvalley deeply into her coaching work. One of the platform\'s most sustained and consistent success stories.' },
+    'research_025': { name: 'L. Davis',                flag: '🇺🇸', role: 'Entrepreneur',                category: 'business',  s: 1, apiId: 'member_001',
+      backstory: 'Entrepreneur who turned to Mindvalley for business mindset and leadership frameworks. Active and results-oriented learner with clear goals.' },
+    'research_026': { name: 'Liner Solarte',           flag: '🇨🇴', role: 'Immigrant Professional',      category: 'personal',  s: 3, apiId: 'member_200',
+      backstory: 'Discovered Mindvalley while building her new life in a new country. Explores broadly across topics but has no single declared direction yet.' },
+    'research_027': { name: 'Megan Hiskes',            flag: '🇺🇸', role: 'Health Professional',         category: 'health',    s: 2, apiId: 'member_300',
+      backstory: 'Passionate about personal health transformation. Engages in bursts of learning but still finding the daily rhythm that makes it stick.' },
+    'research_028': { name: 'Pascale Daigneault',      flag: '🇨🇦', role: 'Spiritual Practitioner',      category: 'spiritual', s: 1, apiId: 'member_001',
+      backstory: 'Silva Method graduate who came to Mindvalley for the ultra content. Deep inner practice with strong consistency and clear intentionality.' },
+    'research_029': { name: 'Rose Boulton',            flag: '🇦🇺', role: 'Business Manager',            category: 'personal',  s: 2, apiId: 'member_300',
+      backstory: 'Busy manager who values personal development but struggles to carve out consistent learning time. Clear intent, inconsistent execution.' },
+    'research_030': { name: 'Ryan Craven',             flag: '🇺🇸', role: 'Long-Term Seeker',            category: 'spiritual', s: 4, apiId: 'member_200',
+      backstory: '17-year veteran of personal development. Once a power user, now largely inactive. Has seen everything but needs a fresh reason to re-engage.' },
+    'research_031': { name: 'Sharron Halpert',         flag: '🇺🇸', role: 'Manifestation Coach',         category: 'spiritual', s: 4, apiId: 'member_200',
+      backstory: 'Manifestation-focused coach who drifted after an initial burst. Strong spiritual framework but hasn\'t maintained her Mindvalley learning habit.' },
+    'research_032': { name: 'Stenisha Green',          flag: '🇺🇸', role: 'Community Leader',            category: 'personal',  s: 3, apiId: 'member_200',
+      backstory: 'Explores Mindvalley content across multiple categories without a clear declared focus. Shows up regularly but needs goal direction from Eve.' },
+    'research_033': { name: 'Steve Komerska',          flag: '🇺🇸', role: 'AI Consultant',               category: 'business',  s: 2, apiId: 'member_300',
+      backstory: 'Tech-forward consultant who uses Mindvalley for leadership and mindset content. Course sequencing friction has slowed his momentum.' },
+    'research_034': { name: 'Tina Berggren',           flag: '🇸🇪', role: 'Long-Term Member',            category: 'personal',  s: 4, apiId: 'member_200',
+      backstory: 'A decade of membership but consistency has been the persistent challenge. High interest, low follow-through — needs a habit anchor from Eve.' },
+    'research_035': { name: 'Valda Baga',              flag: '🇱🇻', role: 'Wellness Seeker',             category: 'health',    s: 4, apiId: 'member_200',
+      backstory: 'Prefers in-person connection over digital learning. Cancelled after the first month. High churn risk — needs personal touch and community.' },
+    'research_036': { name: '33SK Prometheus',         flag: '🇦🇺', role: 'Engineer',                    category: 'personal',  s: 1, apiId: 'member_001',
+      backstory: '30-year personal development explorer who brings deep curiosity to every session. Engages across all categories with remarkable consistency.' },
+    'research_037': { name: 'Adelaida Beatriz Rius Vila', flag: '🇲🇾', role: 'Spiritual Seeker',         category: 'spiritual', s: 4, apiId: 'member_200',
+      backstory: 'Malaysia-based member with strong spiritual aspirations but low recent engagement. Needs outreach and re-inspiration to reignite her practice.' },
+    'research_038': { name: 'Akiko Urushibata',        flag: '🇯🇵', role: 'Mindfulness Practitioner',    category: 'spiritual', s: 4, apiId: 'member_200',
+      backstory: 'Joined Mindvalley for mindfulness and inner peace but has become inactive. Needs gentle re-engagement aligned with her contemplative nature.' },
   };
 
   const ARCHETYPES = {
@@ -873,9 +1014,24 @@
     career:       { icon: '💼', label: 'Career', desc: 'professional growth and fulfillment' },
   };
 
-  const MEMBER_IDS = ['member_001', 'member_050', 'member_100', 'member_200', 'member_300'];
+  const MEMBER_IDS = [
+    'member_001', 'member_050', 'member_100', 'member_200', 'member_300',
+    'research_001','research_002','research_003','research_004','research_005',
+    'research_006','research_007','research_008','research_009','research_010',
+    'research_011','research_012','research_013','research_014','research_015',
+    'research_016','research_017','research_018','research_019','research_020',
+    'research_021','research_022','research_023','research_024','research_025',
+    'research_026','research_027','research_028','research_029','research_030',
+    'research_031','research_032','research_033','research_034','research_035',
+    'research_036','research_037','research_038',
+  ];
   let currentMember = 'member_001';
   let memberCache = {};
+  let pickerFilters = { category: 'all', state: 'all' };
+
+  function apiMemberId() {
+    return PERSONAS[currentMember]?.apiId || currentMember;
+  }
 
   // ── Utils ─────────────────────────────────────────────────────────────────
 
@@ -948,27 +1104,68 @@
     loadAll();
   }
 
+  // ── Picker Filters ────────────────────────────────────────────────────────
+
+  function setPickerFilter(type, value) {
+    pickerFilters[type] = value;
+    const prefix = type === 'category' ? 'fcat' : 'fstate';
+    document.querySelectorAll(`.filter-chip[id^="${prefix}-"]`).forEach(el => {
+      el.classList.toggle('active', el.id === `${prefix}-${value}`);
+    });
+    applyPickerFilters();
+  }
+
+  function applyPickerFilters() {
+    const search = (document.getElementById('pickerSearch')?.value || '').toLowerCase();
+    const { category, state } = pickerFilters;
+    const visible = MEMBER_IDS.filter(id => {
+      const p = PERSONAS[id];
+      if (!p) return false;
+      const catOk   = category === 'all' || p.category === category;
+      const stateOk = state === 'all' || String(p.s) === state;
+      const srchOk  = !search || p.name.toLowerCase().includes(search) || (p.role || '').toLowerCase().includes(search);
+      return catOk && stateOk && srchOk;
+    });
+    const countEl = document.getElementById('pickerCount');
+    if (countEl) countEl.textContent = `${visible.length} of ${MEMBER_IDS.length} members`;
+    renderMemberCards(visible);
+  }
+
   // ── Member Card Renderer ──────────────────────────────────────────────────
 
-  function renderMemberCards() {
+  function renderMemberCards(ids) {
+    const idsToRender = ids || MEMBER_IDS;
     const container = document.getElementById('memberCards');
-    container.innerHTML = MEMBER_IDS.map(id => {
-      const p = PERSONAS[id] || { name: id, flag: '👤', role: '' };
+    if (idsToRender.length === 0) {
+      container.innerHTML = '<div class="empty" style="padding:12px 0;">No members match your filters.</div>';
+      return;
+    }
+    container.innerHTML = idsToRender.map(id => {
+      const p = PERSONAS[id] || { name: id, flag: '👤', role: '', s: 0 };
+      const isResearch = id.startsWith('research_');
+      const pillsHtml = isResearch
+        ? renderStatePill(p.s)
+        : `<span class="mc-pill loading">Loading…</span>`;
       return `
         <div class="member-card ${id === currentMember ? 'active' : ''}" data-id="${id}" onclick="selectMember('${id}')">
           <div class="mc-top">
             <div class="mc-avatar">${p.flag}</div>
             <div>
-              <div class="mc-name">${p.name}</div>
-              <div class="mc-role">${id}</div>
+              <div class="mc-name">${p.name.split(' ')[0]}</div>
+              <div class="mc-role" style="font-size:9px;">${isResearch ? '📋 Research' : '✦ Demo'}</div>
             </div>
           </div>
-          <div class="mc-role" style="margin-bottom:6px;">${p.role}</div>
-          <div class="mc-pills" id="mc-pills-${id}">
-            <span class="mc-pill loading">Loading…</span>
-          </div>
+          <div class="mc-role" style="margin-bottom:5px;">${p.role}</div>
+          <div class="mc-pills" id="mc-pills-${id}">${pillsHtml}</div>
         </div>`;
     }).join('');
+  }
+
+  function renderStatePill(s) {
+    const stateColors = { 1: '#34d399', 2: '#fbbf24', 3: '#22d3ee', 4: '#f87171' };
+    const arch = ARCHETYPES[s] || {};
+    const sc = stateColors[s] || '#9090b8';
+    return `<span class="mc-pill" style="background:rgba(${hexToRgb(sc)},0.15);color:${sc};">S${s} ${arch.icon || ''}</span>`;
   }
 
   function updateMemberCardPills(id, data) {
@@ -1204,7 +1401,7 @@
       document.getElementById(id).innerHTML = '<div class="loading"><div class="spinner"></div></div>'
     );
 
-    const d = await api(`/members/${currentMember}/learner-profile`);
+    const d = await api(`/members/${apiMemberId()}/learner-profile`);
 
     const raw = document.getElementById('rawJson');
     raw.textContent = JSON.stringify(d, null, 2);
@@ -1379,7 +1576,7 @@
 
   async function loadEvePrompts() {
     document.getElementById('evePromptsList').innerHTML = '<div class="loading"><div class="spinner"></div> Loading prompts…</div>';
-    const d = await api(`/members/${currentMember}/eve-prompts`);
+    const d = await api(`/members/${apiMemberId()}/eve-prompts`);
 
     if (d.ab_variant) {
       document.getElementById('eveVariantBadge').textContent = `A/B: ${d.ab_variant}`;
@@ -1419,7 +1616,7 @@
     const lesson = document.getElementById('lessonId').value.trim();
     const quest = document.getElementById('questId').value.trim();
     document.getElementById('learningPromptsList').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/learning-prompts?lesson_id=${lesson}&quest_id=${quest}`);
+    const d = await api(`/members/${apiMemberId()}/learning-prompts?lesson_id=${lesson}&quest_id=${quest}`);
 
     if (!d.prompts?.length) {
       document.getElementById('learningPromptsList').innerHTML = '<div class="empty">No prompts returned.</div>';
@@ -1448,7 +1645,7 @@
 
   async function loadStreakNudge() {
     document.getElementById('streakNudgeBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/streak-nudge`);
+    const d = await api(`/members/${apiMemberId()}/streak-nudge`);
 
     if (!d.eligible) {
       document.getElementById('streakNudgeBody').innerHTML = `
@@ -1476,7 +1673,7 @@
 
   async function loadMomentumNudge() {
     document.getElementById('momentumNudgeBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/momentum-nudge`);
+    const d = await api(`/members/${apiMemberId()}/momentum-nudge`);
 
     if (!d.eligible) {
       document.getElementById('momentumNudgeBody').innerHTML = `
@@ -1505,7 +1702,7 @@
   async function loadCoachingCard() {
     const lesson = document.getElementById('coachLesson').value.trim();
     document.getElementById('coachingCardBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/coaching-card?lesson_id=${lesson}`);
+    const d = await api(`/members/${apiMemberId()}/coaching-card?lesson_id=${lesson}`);
 
     if (!d.stuck) {
       document.getElementById('coachingCardBody').innerHTML = `
@@ -1531,7 +1728,7 @@
 
   async function loadSilenceNudge() {
     document.getElementById('silenceNudgeBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/silence-nudge`);
+    const d = await api(`/members/${apiMemberId()}/silence-nudge`);
 
     if (!d.nudge) {
       document.getElementById('silenceNudgeBody').innerHTML = `
@@ -1558,7 +1755,7 @@
   async function sendNudge() {
     const type = document.getElementById('nudgeType').value;
     document.getElementById('brazeResult').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/send-nudge`, {
+    const d = await api(`/members/${apiMemberId()}/send-nudge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nudge_type: type }),
@@ -1580,7 +1777,7 @@
 
   async function loadNextChapter() {
     document.getElementById('nextChapterGrid').innerHTML = '<div class="loading"><div class="spinner"></div> Loading…</div>';
-    const d = await api(`/members/${currentMember}/next-chapter`);
+    const d = await api(`/members/${apiMemberId()}/next-chapter`);
 
     if (!d.recommendations?.length) {
       document.getElementById('nextChapterGrid').innerHTML = '<div class="empty">No recommendations available.</div>';
@@ -1611,7 +1808,7 @@
     const quest = document.getElementById('almostQuest').value.trim();
     const pctVal = document.getElementById('almostPct').value;
     document.getElementById('almostThereBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/almost-there?quest_id=${quest}&completion_pct=${pctVal}`);
+    const d = await api(`/members/${apiMemberId()}/almost-there?quest_id=${quest}&completion_pct=${pctVal}`);
 
     if (!d.eligible) {
       document.getElementById('almostThereBody').innerHTML = `<div class="nudge-card inactive-nudge"><span class="nudge-icon">—</span><div class="nudge-body"><h4>Not eligible</h4><p>${pctVal}% is below 80% threshold.</p></div></div>`;
@@ -1631,7 +1828,7 @@
     const questId = document.getElementById('completeQuest').value.trim();
     const pctVal = parseInt(document.getElementById('completePct').value) || 100;
     document.getElementById('questResult').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/quest-complete`, {
+    const d = await api(`/members/${apiMemberId()}/quest-complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quest_id: questId, completion_percentage: pctVal }),
@@ -1660,7 +1857,7 @@
   async function checkMilestone() {
     const ids = document.getElementById('milestoneIds').value.trim().split(',').map(s => s.trim()).filter(Boolean);
     document.getElementById('milestoneResult').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    const d = await api(`/members/${currentMember}/milestone-check`, {
+    const d = await api(`/members/${apiMemberId()}/milestone-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ completed_quest_ids: ids }),
@@ -1691,8 +1888,8 @@
   // ── Pre-fetch all members in background ───────────────────────────────────
 
   async function prefetchAllMembers() {
-    await Promise.all(MEMBER_IDS.map(async id => {
-      if (id === currentMember) return; // already loaded
+    const demoIds = MEMBER_IDS.filter(id => !id.startsWith('research_') && id !== currentMember);
+    await Promise.all(demoIds.map(async id => {
       try {
         const d = await api(`/members/${id}/learner-profile`);
         if (d.data) {
@@ -1705,7 +1902,7 @@
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
-  renderMemberCards();
+  applyPickerFilters();
   checkHealth();
   setInterval(checkHealth, 10000);
   loadAll();
